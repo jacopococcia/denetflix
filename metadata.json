@@ -1,0 +1,6 @@
+{
+  "name": "Denetflix",
+  "description": "Answer a few playful questions to find up to 7 retro movie recommendations from the 1960s, 1970s, 1980s, and 1990s.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

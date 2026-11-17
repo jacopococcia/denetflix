@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --color-cinema-bg: #0B0D14;
+  --color-cinema-surface: #141724;
+  --color-cinema-elevated: #1D2134;
+  --color-cinema-red: #E80000;
+  --color-cinema-coral: #FF5C6C;
+  --color-cinema-cyan: #00D4FF;
+  --color-cinema-magenta: #FF2E93;
+  --color-cinema-mint: #2DD496;
+  --color-cinema-ink: #F6F4EE;
+  --color-cinema-muted: #A8B1C7;
+}
+
+@layer base {
+  html {
+    background-color: #0B0D14;
+    color: #F6F4EE;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: #0B0D14;
+    color: #F6F4EE;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+}
+
+/* Subtle 35mm cinema grain overlay — purely atmospheric, non-blocking */
+.film-grain {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+}
+
+/* 80s Pop Art halftone dot pattern for fallback movie posters */
+.pop-halftone {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.14) 1.5px, transparent 1.5px);
+  background-size: 12px 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

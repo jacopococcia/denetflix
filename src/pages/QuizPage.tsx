@@ -1,0 +1,236 @@
+import {ArrowLeft, ArrowRight, RotateCcw, Sparkles} from 'lucide-react';
+import {Button} from '../components/Button';
+import {PopIcon} from '../components/PopIcon';
+import {ProgressBar} from '../components/ProgressBar';
+import {QuizOption} from '../components/QuizOption';
+import {QUIZ_QUESTIONS} from '../data/quizQuestions';
+import type {
+  AttentionPreference,
+  DecadePreference,
+  ExclusionPreference,
+  MoodPreference,
+  MovieGenre,
+  MovieOrigin,
+  PopularityPreference,
+  QuizAnswersMap,
+  ViewingContext,
+} from '../types/quiz';
+
+interface QuizPageProps {
+  currentStepIndex: number;
+  answers: QuizAnswersMap;
+  onUpdateAnswers: (next: QuizAnswersMap) => void;
+  onStepChange: (nextIndex: number) => void;
+  onRestart: () => void;
+  onSubmit: () => void;
+}
+
+export function QuizPage({
+  currentStepIndex,
+  answers,
+  onUpdateAnswers,
+  onStepChange,
+  onRestart,
+  onSubmit,
+}: QuizPageProps) {
+  const question = QUIZ_QUESTIONS[currentStepIndex];
+  const totalSteps = QUIZ_QUESTIONS.length;
+  const isFirstStep = currentStepIndex === 0;
+  const isLastStep = currentStepIndex === totalSteps - 1;
+
+  const isOptionSelected = (value: string): boolean => {
+    switch (question.id) {
+      case 'decade':
+        return answers.decade === value;
+      case 'genres':
+        return answers.genres.includes(value as MovieGenre);
+      case 'origin':
+        return answers.origin === value;
+      case 'mood':
+        return answers.mood === value;
+      case 'attention':
+        return answers.attention === value;
+      case 'popularity':
+        return answers.popularity === value;
+      case 'context':
+        return answers.context === value;
+      case 'exclusions':
+        return answers.exclusions.includes(value as ExclusionPreference);
+    }
+  };
+
+  const handleSelectOption = (value: string) => {
+    switch (question.id) {
+      case 'decade':
+        onUpdateAnswers({...answers, decade: value as DecadePreference});
+        break;
+      case 'genres': {
+        const genre = value as MovieGenre;
+        const exists = answers.genres.includes(genre);
+        if (exists) {
+          onUpdateAnswers({...answers, genres: answers.genres.filter((g) => g !== genre)});
+        } else {
+          const max = question.maxSelections ?? 3;
+          const next = [...answers.genres, genre].slice(-max);
+          onUpdateAnswers({...answers, genres: next});
+        }
+        break;
+      }
+      case 'origin':
+        onUpdateAnswers({...answers, origin: value as MovieOrigin});
+        break;
+      case 'mood':
+        onUpdateAnswers({...answers, mood: value as MoodPreference});
+        break;
+      case 'attention':
+        onUpdateAnswers({...answers, attention: value as AttentionPreference});
+        break;
+      case 'popularity':
+        onUpdateAnswers({...answers, popularity: value as PopularityPreference});
+        break;
+      case 'context':
+        onUpdateAnswers({...answers, context: value as ViewingContext});
+        break;
+      case 'exclusions': {
+        const exclusion = value as ExclusionPreference;
+        if (exclusion === 'no-preference') {
+          onUpdateAnswers({...answers, exclusions: ['no-preference']});
+          break;
+        }
+        const withoutNone = answers.exclusions.filter((ex) => ex !== 'no-preference');
+        const exists = withoutNone.includes(exclusion);
+        const next = exists
+          ? withoutNone.filter((ex) => ex !== exclusion)
+          : [...withoutNone, exclusion];
+        onUpdateAnswers({
+          ...answers,
+          exclusions: next.length > 0 ? next : ['no-preference'],
+        });
+        break;
+      }
+    }
+  };
+
+  const handleSurpriseGenres = () => {
+    onUpdateAnswers({...answers, genres: []});
+    onStepChange(currentStepIndex + 1);
+  };
+
+  const handleNext = () => {
+    if (isLastStep) {
+      onSubmit();
+    } else {
+      onStepChange(currentStepIndex + 1);
+    }
+  };
+
+  const isMultiColumn = question.options.length > 6;
+
+  return (
+    <section className="mx-auto max-w-3xl px-4 py-6 pb-28 sm:px-6 sm:py-10 sm:pb-12">
+      <div className="space-y-6">
+        {/* Progress & Restart row */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex-1">
+            <ProgressBar currentStep={currentStepIndex + 1} totalSteps={totalSteps} />
+          </div>
+          <button
+            type="button"
+            onClick={onRestart}
+            className="inline-flex min-h-[40px] items-center gap-1.5 self-start text-xs font-medium text-[#A8B1C7] hover:text-[#F6F4EE] cursor-pointer sm:self-end"
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Restart quiz</span>
+          </button>
+        </div>
+
+        {/* Question Header with Warhol/Lichtenstein Pop Icon */}
+        <div className="flex items-start gap-4 pt-2">
+          <PopIcon
+            name={question.icon}
+            accent={question.accentColor || 'crimson-pop'}
+            size="lg"
+          />
+          <div className="space-y-1.5">
+            <h1 className="font-display text-2xl font-extrabold leading-tight text-[#F6F4EE] sm:text-3xl">
+              {question.prompt}
+            </h1>
+            <p className="text-sm text-[#A8B1C7] sm:text-base">{question.helperText}</p>
+            {question.id === 'genres' ? (
+              <p className="text-xs font-semibold text-[#00E5FF] tabular-nums">
+                Selected: {answers.genres.length} / {question.maxSelections ?? 3}
+                {answers.genres.length === 0 ? ' (any genre works)' : ''}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Answer Options */}
+        <div
+          role={question.selectionMode === 'single' ? 'radiogroup' : 'group'}
+          aria-label={question.prompt}
+          className={`grid gap-3 ${isMultiColumn ? 'sm:grid-cols-2' : 'grid-cols-1'}`}
+        >
+          {question.options.map((option) => (
+            <QuizOption
+              key={option.value}
+              label={option.label}
+              hint={option.hint}
+              icon={option.icon}
+              accentColor={option.accentColor}
+              selected={isOptionSelected(option.value)}
+              selectionMode={question.selectionMode}
+              onSelect={() => handleSelectOption(option.value)}
+            />
+          ))}
+        </div>
+
+        {/* Desktop navigation bar */}
+        <div className="hidden items-center justify-between gap-4 border-t border-white/10 pt-6 sm:flex">
+          <Button
+            variant="secondary"
+            onClick={() => onStepChange(currentStepIndex - 1)}
+            disabled={isFirstStep}
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <span>Back</span>
+          </Button>
+
+          <div className="flex items-center gap-3">
+            {question.id === 'genres' ? (
+              <Button variant="ghost" onClick={handleSurpriseGenres}>
+                <Sparkles className="h-4 w-4" aria-hidden="true" />
+                <span>Surprise me</span>
+              </Button>
+            ) : null}
+
+            <Button variant="primary" onClick={handleNext}>
+              <span>{isLastStep ? 'Find my movie' : 'Continue'}</span>
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile thumb-zone bottom bar (under 15% viewport height) */}
+      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-white/10 bg-[#0B0D14]/95 px-4 py-3 backdrop-blur-md sm:hidden">
+        <div className="mx-auto flex max-w-3xl items-center gap-3">
+          <Button
+            variant="secondary"
+            onClick={() => onStepChange(currentStepIndex - 1)}
+            disabled={isFirstStep}
+            className="flex-1"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <span>Back</span>
+          </Button>
+
+          <Button variant="primary" onClick={handleNext} className="flex-[2]">
+            <span>{isLastStep ? 'Find my movie' : 'Continue'}</span>
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
