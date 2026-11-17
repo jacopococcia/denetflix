@@ -7,7 +7,12 @@ import type {
 } from '../types/movie';
 import type {QuizAnswersMap, UserPreferences} from '../types/quiz';
 import {summarizePreferences} from '../utils/formatters';
-import {buildUserPreferences, MAX_RECOMMENDATIONS, rankAndSelectMovies} from '../utils/scoring';
+import {
+  buildUserPreferences,
+  diagnoseEmptyMatches,
+  MAX_RECOMMENDATIONS,
+  rankAndSelectMovies,
+} from '../utils/scoring';
 import {createPhysicalMediaLink} from './amazonService';
 import {resolveFallbackPoster} from './posterService';
 import {
@@ -44,6 +49,9 @@ async function requestGeminiEnhancement(
   movies: Movie[],
   callerSignal?: AbortSignal,
 ): Promise<GeminiRecommendationResponse | null> {
+  if (movies.length === 0) {
+    return null;
+  }
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     return null;
   }
@@ -137,13 +145,26 @@ export async function generateRecommendations(
     }
   }
 
+  const allCandidates = Array.from(mergedByKey.values());
   const ranked = rankAndSelectMovies(
-    Array.from(mergedByKey.values()),
+    allCandidates,
     preferences,
     MAX_RECOMMENDATIONS,
   );
 
   const selectedMovies = ranked.map((r) => r.movie);
+
+  if (selectedMovies.length === 0) {
+    const emptyDiagnostics = diagnoseEmptyMatches(allCandidates, preferences);
+    return {
+      personalizedIntro: emptyDiagnostics.reason,
+      recommendations: [],
+      dataMode: tmdbResult.liveTmdbUsed ? 'hybrid' : 'demo-fallback',
+      aiEnhanced: false,
+      notice: tmdbResult.message,
+      emptyDiagnostics,
+    };
+  }
 
   // Resolve posters, live JustWatch availability + trailers, and optional AI notes in parallel
   const [resolvedPosters, availabilityAndTrailers, geminiResult] = await Promise.all([

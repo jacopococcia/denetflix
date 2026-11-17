@@ -580,49 +580,69 @@ async function startServer() {
         origin?: string;
         genres?: string[];
         popularity?: string;
+        context?: string;
         exclusions?: string[];
       };
 
       const range = getDecadeDates(preferences?.decade || 'surprise');
-      const params = new URLSearchParams({
-        api_key: tmdbKey,
-        include_adult: 'false',
-        include_video: 'false',
-        language: 'en-US',
-        'primary_release_date.gte': range.gte,
-        'primary_release_date.lte': range.lte,
-        'vote_count.gte': preferences?.popularity === 'forgotten-midnight' ? '40' : '80',
-        'vote_count.lte': preferences?.popularity === 'cult-favorites' ? '1800' : '1100',
-        'vote_average.gte': '6.4',
-        sort_by: 'vote_average.desc',
-        page: '1',
-      });
+      const exclusions = Array.isArray(preferences?.exclusions) ? preferences.exclusions : [];
+      const withoutGenreIds: number[] = [];
+      if (exclusions.includes('avoid-horror') || preferences?.context === 'family') {
+        withoutGenreIds.push(27);
+      }
+      if (exclusions.includes('avoid-romance')) {
+        withoutGenreIds.push(10749);
+      }
 
-      if (Array.isArray(preferences?.genres) && preferences.genres.length > 0) {
-        const ids = preferences.genres
-          .map((g) => GENRE_NAME_TO_TMDB_ID[g])
-          .filter((id): id is number => Boolean(id));
-        if (ids.length > 0) {
-          params.set('with_genres', ids.join('|'));
+      const buildDiscoverParams = (relaxed: boolean) => {
+        const params = new URLSearchParams({
+          api_key: tmdbKey,
+          include_adult: 'false',
+          include_video: 'false',
+          language: 'en-US',
+          'primary_release_date.gte': range.gte,
+          'primary_release_date.lte': range.lte,
+          'vote_count.gte': relaxed ? '10' : preferences?.popularity === 'forgotten-midnight' ? '30' : '60',
+          'vote_count.lte': relaxed ? '2400' : preferences?.popularity === 'cult-favorites' ? '1800' : '1200',
+          'vote_average.gte': relaxed ? '5.5' : '6.2',
+          sort_by: relaxed ? 'popularity.desc' : 'vote_average.desc',
+          page: '1',
+        });
+
+        if (Array.isArray(preferences?.genres) && preferences.genres.length > 0) {
+          const ids = preferences.genres
+            .map((g) => GENRE_NAME_TO_TMDB_ID[g])
+            .filter((id): id is number => Boolean(id));
+          if (ids.length > 0) {
+            params.set('with_genres', ids.join('|'));
+          }
         }
-      }
 
-      if (preferences?.origin === 'italy') {
-        params.set('with_origin_country', 'IT');
-      } else if (preferences?.origin === 'usa') {
-        params.set('with_origin_country', 'US');
-      } else if (preferences?.origin === 'europe') {
-        params.set('with_origin_country', 'FR|DE|GB|ES|CZ|SE|PL');
-      } else if (preferences?.origin === 'asia') {
-        params.set('with_origin_country', 'JP|HK|KR|TW|CN');
-      }
+        if (withoutGenreIds.length > 0) {
+          params.set('without_genres', withoutGenreIds.join(','));
+        }
+        if (exclusions.includes('avoid-long')) {
+          params.set('with_runtime.lte', '130');
+        }
 
-      if (Array.isArray(preferences?.exclusions) && preferences.exclusions.includes('avoid-subtitles')) {
-        params.set('with_original_language', 'en');
-      }
+        if (preferences?.origin === 'italy') {
+          params.set('with_origin_country', 'IT');
+        } else if (preferences?.origin === 'usa') {
+          params.set('with_origin_country', 'US');
+        } else if (preferences?.origin === 'europe') {
+          params.set('with_origin_country', 'FR|DE|GB|ES|CZ|SE|PL|BE|NL|DK');
+        } else if (preferences?.origin === 'asia') {
+          params.set('with_origin_country', 'JP|HK|KR|TW|CN');
+        }
+
+        if (exclusions.includes('avoid-subtitles')) {
+          params.set('with_original_language', 'en');
+        }
+        return params;
+      };
 
       const discoverRes = await fetch(
-        `https://api.themoviedb.org/3/discover/movie?${params.toString()}`,
+        `https://api.themoviedb.org/3/discover/movie?${buildDiscoverParams(false).toString()}`,
         {signal: AbortSignal.timeout(5000)},
       );
 
@@ -652,7 +672,25 @@ async function startServer() {
       }
 
       const discoverJson = (await discoverRes.json()) as {results?: Array<{id: number}>};
-      const candidates = (discoverJson.results || []).slice(0, 10);
+      const candidates = (discoverJson.results || []).slice(0, 14);
+
+      if (candidates.length < 7) {
+        const relaxedRes = await fetch(
+          `https://api.themoviedb.org/3/discover/movie?${buildDiscoverParams(true).toString()}`,
+          {signal: AbortSignal.timeout(5000)},
+        );
+        if (relaxedRes.ok) {
+          const relaxedJson = (await relaxedRes.json()) as {results?: Array<{id: number}>};
+          const seenIds = new Set(candidates.map((c) => c.id));
+          for (const extra of relaxedJson.results || []) {
+            if (!seenIds.has(extra.id)) {
+              seenIds.add(extra.id);
+              candidates.push(extra);
+            }
+            if (candidates.length >= 14) break;
+          }
+        }
+      }
 
       const details = await Promise.all(
         candidates.map(async (item) => {

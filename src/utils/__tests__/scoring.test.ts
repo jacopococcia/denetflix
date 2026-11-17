@@ -1,9 +1,18 @@
 import {describe, expect, it} from 'vitest';
 import {FALLBACK_MOVIES} from '../../data/fallbackMovies';
-import {DEFAULT_QUIZ_ANSWERS} from '../../data/quizQuestions';
+import {DEFAULT_QUIZ_ANSWERS, QUIZ_QUESTIONS} from '../../data/quizQuestions';
 import {buildAmazonSearchUrl} from '../../services/amazonService';
+import {normalizeTmdbMovieDetail} from '../../services/tmdbService';
 import type {Movie} from '../../types/movie';
-import {buildUserPreferences, MAX_RECOMMENDATIONS, rankAndSelectMovies, scoreMovie} from '../scoring';
+import type {MoodPreference, MovieGenre, MovieOrigin} from '../../types/quiz';
+import {
+  buildUserPreferences,
+  diagnoseEmptyMatches,
+  MAX_RECOMMENDATIONS,
+  rankAndSelectMovies,
+  scoreMovie,
+  VALID_MOVIE_GENRES,
+} from '../scoring';
 
 describe('Denetflix rare-gem scoring and strict recommendation engine', () => {
   it('never returns more than 7 movies', () => {
@@ -11,6 +20,35 @@ describe('Denetflix rare-gem scoring and strict recommendation engine', () => {
     const results = rankAndSelectMovies(FALLBACK_MOVIES, prefs, 10);
     expect(results.length).toBeLessThanOrEqual(MAX_RECOMMENDATIONS);
     expect(results.length).toBeGreaterThan(0);
+  });
+
+  it('validates every movie in FALLBACK_MOVIES (genres, moods, decade window, unique IDs)', () => {
+    const seenIds = new Set<string>();
+    for (const movie of FALLBACK_MOVIES) {
+      expect(seenIds.has(movie.id)).toBe(false);
+      seenIds.add(movie.id);
+
+      expect(movie.year).toBeGreaterThanOrEqual(1960);
+      expect(movie.year).toBeLessThanOrEqual(1999);
+
+      const expectedDecade =
+        movie.year < 1970
+          ? '1960s'
+          : movie.year < 1980
+            ? '1970s'
+            : movie.year < 1990
+              ? '1980s'
+              : '1990s';
+      expect(movie.decade).toBe(expectedDecade);
+
+      expect(movie.genres.length).toBeGreaterThan(0);
+      for (const genre of movie.genres) {
+        expect(VALID_MOVIE_GENRES.has(genre)).toBe(true);
+      }
+
+      expect(movie.moods.length).toBeGreaterThan(0);
+      expect(movie.contexts.length).toBeGreaterThan(0);
+    }
   });
 
   it('strictly excludes movies outside 1960–1999', () => {
@@ -67,6 +105,120 @@ describe('Denetflix rare-gem scoring and strict recommendation engine', () => {
     const ranked = rankAndSelectMovies(FALLBACK_MOVIES, prefs);
     expect(ranked.length).toBeGreaterThan(0);
     expect(ranked.every((r) => r.movie.origin === 'usa')).toBe(true);
+  });
+
+  it('covers all 13 genres across every mood and every regional origin', () => {
+    const allGenres = QUIZ_QUESTIONS.find((q) => q.id === 'genres')!.options.map(
+      (o) => o.value as MovieGenre,
+    );
+    const allMoods = QUIZ_QUESTIONS.find((q) => q.id === 'mood')!.options.map(
+      (o) => o.value as MoodPreference,
+    );
+    const allOrigins: Exclude<MovieOrigin, 'any'>[] = ['italy', 'usa', 'europe', 'asia'];
+
+    for (const genre of allGenres) {
+      for (const mood of allMoods) {
+        const prefs = buildUserPreferences(
+          {
+            ...DEFAULT_QUIZ_ANSWERS,
+            decade: 'surprise',
+            origin: 'any',
+            genres: [genre],
+            mood,
+          },
+          'US',
+        );
+        const matches = rankAndSelectMovies(FALLBACK_MOVIES, prefs);
+        expect(matches.length, `Expected matches for ${genre} + ${mood}`).toBeGreaterThan(0);
+        expect(matches.every((m) => m.movie.genres.includes(genre))).toBe(true);
+      }
+
+      for (const origin of allOrigins) {
+        const hasOriginMovie = FALLBACK_MOVIES.some(
+          (m) => m.genres.includes(genre) && m.origin === origin,
+        );
+        expect(hasOriginMovie, `Expected ${genre} films for origin ${origin}`).toBe(true);
+      }
+    }
+  });
+
+  it('returns real War recommendations across all decades and origins when matching films exist', () => {
+    const warQueries: Array<{origin: MovieOrigin; decade: '1960s' | '1970s' | '1980s' | '1990s'; mood: MoodPreference}> = [
+      {origin: 'italy', decade: '1960s', mood: 'exciting'},
+      {origin: 'italy', decade: '1970s', mood: 'exciting'},
+      {origin: 'italy', decade: '1980s', mood: 'nostalgic'},
+      {origin: 'italy', decade: '1990s', mood: 'feel-good'},
+      {origin: 'usa', decade: '1960s', mood: 'weird-good'},
+      {origin: 'usa', decade: '1970s', mood: 'fun-light'},
+      {origin: 'usa', decade: '1980s', mood: 'exciting'},
+      {origin: 'usa', decade: '1990s', mood: 'nostalgic'},
+      {origin: 'europe', decade: '1960s', mood: 'dark-entertaining'},
+      {origin: 'europe', decade: '1970s', mood: 'exciting'},
+      {origin: 'europe', decade: '1980s', mood: 'feel-good'},
+      {origin: 'europe', decade: '1990s', mood: 'weird-good'},
+      {origin: 'asia', decade: '1960s', mood: 'dark-entertaining'},
+      {origin: 'asia', decade: '1970s', mood: 'exciting'},
+      {origin: 'asia', decade: '1980s', mood: 'exciting'},
+      {origin: 'asia', decade: '1990s', mood: 'dark-entertaining'},
+    ];
+
+    for (const q of warQueries) {
+      const prefs = buildUserPreferences(
+        {
+          ...DEFAULT_QUIZ_ANSWERS,
+          genres: ['War'],
+          origin: q.origin,
+          decade: q.decade,
+          mood: q.mood,
+        },
+        'US',
+      );
+      const ranked = rankAndSelectMovies(FALLBACK_MOVIES, prefs);
+      expect(ranked.length, `Expected War matches for ${q.origin}/${q.decade}/${q.mood}`).toBeGreaterThan(0);
+      expect(ranked.every((r) => r.movie.genres.includes('War'))).toBe(true);
+    }
+  });
+
+  it('rejects TMDB entries with unmapped genres and maps War TMDB moods accurately', () => {
+    const unmappedDrama = normalizeTmdbMovieDetail({
+      id: 999001,
+      title: 'Pure Drama Movie',
+      release_date: '1984-05-01',
+      genres: [{id: 18, name: 'Drama'}],
+      vote_count: 200,
+    });
+    expect(unmappedDrama).toBeNull();
+
+    const warFilm = normalizeTmdbMovieDetail({
+      id: 999002,
+      title: 'Cult Frontline Film',
+      release_date: '1978-06-15',
+      genres: [
+        {id: 10752, name: 'War'},
+        {id: 28, name: 'Action'},
+      ],
+      origin_country: ['IT'],
+      original_language: 'it',
+      vote_count: 150,
+    });
+    expect(warFilm).not.toBeNull();
+    expect(warFilm!.genres).toContain('War');
+    expect(warFilm!.moods).toContain('dark-entertaining');
+    expect(warFilm!.moods).toContain('exciting');
+  });
+
+  it('diagnoses true zero-result parameter conflicts clearly', () => {
+    const contradictoryPrefs = buildUserPreferences(
+      {
+        ...DEFAULT_QUIZ_ANSWERS,
+        genres: ['Horror'],
+        exclusions: ['avoid-horror'],
+      },
+      'US',
+    );
+    expect(rankAndSelectMovies(FALLBACK_MOVIES, contradictoryPrefs)).toHaveLength(0);
+    const diag = diagnoseEmptyMatches(FALLBACK_MOVIES, contradictoryPrefs);
+    expect(diag.reason.toLowerCase()).toContain('avoid horror');
   });
 
   it('strictly enforces selected genres, decade, and mood without leaking off-match titles', () => {

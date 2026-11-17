@@ -88,12 +88,18 @@ export interface MovieRecommendation {
   copySource: 'gemini' | 'curated';
 }
 
+export interface EmptyMatchDiagnostics {
+  reason: string;
+  suggestions: string[];
+}
+
 export interface RecommendationBundle {
   personalizedIntro: string;
   recommendations: MovieRecommendation[];
   dataMode: 'live-tmdb' | 'hybrid' | 'demo-fallback';
   aiEnhanced: boolean;
   notice?: string;
+  emptyDiagnostics?: EmptyMatchDiagnostics;
 }
 
 export interface GeminiRecommendationItem {

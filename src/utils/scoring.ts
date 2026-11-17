@@ -233,3 +233,120 @@ export function rankAndSelectMovies(
 
   return selected.slice(0, safeLimit);
 }
+
+export const VALID_MOVIE_GENRES: ReadonlySet<string> = new Set([
+  'Action',
+  'Comedy',
+  'Science fiction',
+  'Fantasy',
+  'Horror',
+  'Thriller',
+  'Romance',
+  'Adventure',
+  'Crime',
+  'Family',
+  'Musical',
+  'War',
+  'Mystery',
+]);
+
+/**
+ * Inspects why no candidates survived strict filtering, identifying direct contradictions
+ * or single-constraint relaxations that would unlock real matches.
+ */
+export function diagnoseEmptyMatches(
+  candidates: Movie[],
+  preferences: UserPreferences,
+): {reason: string; suggestions: string[]} {
+  const activeExclusions = preferences.exclusions.filter((ex) => ex !== 'no-preference');
+
+  if (
+    preferences.genres.length === 1 &&
+    preferences.genres[0] === 'Horror' &&
+    activeExclusions.includes('avoid-horror')
+  ) {
+    return {
+      reason: 'You selected Horror as your only genre while Avoid horror is active in your exclusions.',
+      suggestions: ['Remove "Avoid horror" from exclusions or pick a different genre.'],
+    };
+  }
+
+  if (
+    preferences.genres.length === 1 &&
+    preferences.genres[0] === 'Romance' &&
+    activeExclusions.includes('avoid-romance')
+  ) {
+    return {
+      reason: 'You selected Romance as your only genre while Avoid romance is active in your exclusions.',
+      suggestions: ['Remove "Avoid romance" from exclusions or pick a different genre.'],
+    };
+  }
+
+  if (
+    preferences.genres.length === 1 &&
+    preferences.genres[0] === 'Horror' &&
+    preferences.context === 'family'
+  ) {
+    return {
+      reason: 'Horror movies are excluded when Family viewing is selected.',
+      suggestions: ['Switch viewing context away from Family viewing, or choose another genre.'],
+    };
+  }
+
+  const suggestions: string[] = [];
+
+  if (preferences.decade !== 'surprise') {
+    const relaxed = {...preferences, decade: 'surprise' as const};
+    const count = rankAndSelectMovies(candidates, relaxed).length;
+    if (count > 0) {
+      suggestions.push(`Switching decade from ${preferences.decade} to Surprise me unlocks ${count} matching ${count === 1 ? 'film' : 'films'}.`);
+    }
+  }
+
+  if (preferences.origin !== 'any') {
+    const relaxed = {...preferences, origin: 'any' as const};
+    const count = rankAndSelectMovies(candidates, relaxed).length;
+    if (count > 0) {
+      suggestions.push(`Opening production country to Anywhere unlocks ${count} matching ${count === 1 ? 'film' : 'films'}.`);
+    }
+  }
+
+  if (preferences.context === 'family') {
+    const relaxed = {...preferences, context: 'friends' as const};
+    const count = rankAndSelectMovies(candidates, relaxed).length;
+    if (count > 0) {
+      suggestions.push(`Switching viewing context off Family viewing unlocks ${count} matching ${count === 1 ? 'film' : 'films'}.`);
+    }
+  }
+
+  for (const ex of activeExclusions) {
+    const remaining = activeExclusions.filter((item) => item !== ex);
+    const relaxed: UserPreferences = {
+      ...preferences,
+      exclusions: remaining.length > 0 ? remaining : ['no-preference'],
+    };
+    const count = rankAndSelectMovies(candidates, relaxed).length;
+    if (count > 0) {
+      suggestions.push(`Removing "${ex.replace(/^avoid-/, 'Avoid ').replace(/-/g, ' ')}" unlocks ${count} matching ${count === 1 ? 'film' : 'films'}.`);
+    }
+  }
+
+  const parts: string[] = [];
+  if (preferences.genres.length > 0) parts.push(preferences.genres.join(' / '));
+  if (preferences.decade !== 'surprise') parts.push(preferences.decade);
+  if (preferences.origin !== 'any') parts.push(preferences.origin.toUpperCase());
+  parts.push(preferences.mood.replace(/-/g, ' '));
+  if (preferences.context === 'family') parts.push('family viewing');
+  if (activeExclusions.length > 0) {
+    parts.push(activeExclusions.map((e) => e.replace(/-/g, ' ')).join(', '));
+  }
+
+  return {
+    reason: `No verified 1960–1999 films matched every stacked filter (${parts.join(' · ')}).`,
+    suggestions:
+      suggestions.length > 0
+        ? suggestions.slice(0, 3)
+        : ['Try picking an additional genre, switching decade to Surprise me, or opening the production country filter.'],
+  };
+}
+

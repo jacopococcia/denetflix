@@ -102,14 +102,25 @@ export function ResultsPage({
 
       {/* Movie recommendations list (max 7) */}
       {bundle.recommendations.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-[#141724] p-8 text-center space-y-4">
+        <div className="rounded-2xl border border-[#E80000]/40 bg-[#141724] p-8 text-center space-y-4">
           <h2 className="font-display text-2xl font-bold text-[#F6F4EE]">
-            No exact matches survived your filter combo
+            No movies exist under that exact rule combination
           </h2>
-          <p className="mx-auto max-w-md text-sm text-[#A8B1C7]">
-            Even our dusty back-shelf VHS archive came up empty with those rules stacked together. Try loosening one exclusion or switching decades.
+          <p className="mx-auto max-w-lg text-sm leading-relaxed text-[#A8B1C7]">
+            {bundle.emptyDiagnostics?.reason ||
+              'Even our dusty back-shelf VHS archive came up empty with those rules stacked together.'}
           </p>
-          <div className="flex justify-center gap-3">
+          {bundle.emptyDiagnostics?.suggestions && bundle.emptyDiagnostics.suggestions.length > 0 ? (
+            <ul className="mx-auto max-w-md space-y-1.5 rounded-xl border border-white/10 bg-[#0B0D14] p-4 text-left text-xs text-[#F6F4EE]">
+              {bundle.emptyDiagnostics.suggestions.map((suggestion) => (
+                <li key={suggestion} className="flex items-start gap-2">
+                  <span className="mt-0.5 text-[#FFE800]" aria-hidden="true">▸</span>
+                  <span>{suggestion}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="flex justify-center gap-3 pt-1">
             <Button variant="primary" onClick={onModifyAnswers}>
               Change my answers
             </Button>

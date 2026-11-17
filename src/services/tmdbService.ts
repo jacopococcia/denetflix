@@ -204,17 +204,59 @@ function inferTraitsFromGenres(
         ? 'forgotten-midnight'
         : 'cult-favorites';
 
-  const moods: MoodPreference[] = [];
-  if (genres.includes('Comedy') || genres.includes('Musical')) moods.push('fun-light', 'feel-good');
-  if (genres.includes('Action') || genres.includes('Adventure') || genres.includes('Thriller')) moods.push('exciting');
-  if (genres.includes('Horror') || genres.includes('Crime')) moods.push('dark-entertaining');
-  if (genres.includes('Fantasy') || genres.includes('Science fiction')) moods.push('weird-good', 'nostalgic');
-  if (moods.length === 0) moods.push('unforgettable', 'nostalgic');
+  const moods = new Set<MoodPreference>();
+  if (genres.includes('Comedy') || genres.includes('Musical') || genres.includes('Family')) {
+    moods.add('fun-light');
+    moods.add('feel-good');
+    moods.add('nostalgic');
+  }
+  if (genres.includes('Romance')) {
+    moods.add('feel-good');
+    moods.add('nostalgic');
+    if (!genres.includes('Horror') && !genres.includes('War')) {
+      moods.add('fun-light');
+    }
+  }
+  if (genres.includes('Action') || genres.includes('Adventure') || genres.includes('Thriller')) {
+    moods.add('exciting');
+    moods.add('unforgettable');
+  }
+  if (genres.includes('War')) {
+    moods.add('exciting');
+    moods.add('dark-entertaining');
+    moods.add('unforgettable');
+    moods.add('nostalgic');
+  }
+  if (genres.includes('Horror') || genres.includes('Crime') || genres.includes('Mystery')) {
+    moods.add('dark-entertaining');
+    moods.add('unforgettable');
+  }
+  if (genres.includes('Fantasy') || genres.includes('Science fiction')) {
+    moods.add('weird-good');
+    moods.add('nostalgic');
+    moods.add('unforgettable');
+  }
+  if (moods.size === 0) {
+    moods.add('unforgettable');
+    moods.add('nostalgic');
+  }
 
-  const contexts: ViewingContext[] = ['alone', 'friends'];
-  if (genres.includes('Family')) contexts.push('family');
-  if (genres.includes('Romance') || genres.includes('Comedy')) contexts.push('date-night');
-  if (genres.includes('Horror') || genres.includes('Action')) contexts.push('late-night');
+  const contexts = new Set<ViewingContext>(['alone', 'friends']);
+  if (genres.includes('Family') && !genres.includes('Horror')) {
+    contexts.add('family');
+  }
+  if ((genres.includes('Romance') || genres.includes('Comedy') || genres.includes('Musical')) && !genres.includes('Horror')) {
+    contexts.add('date-night');
+  }
+  if (
+    genres.includes('Horror') ||
+    genres.includes('Action') ||
+    genres.includes('Thriller') ||
+    genres.includes('Crime') ||
+    genres.includes('War')
+  ) {
+    contexts.add('late-night');
+  }
 
   const attentionLevels: AttentionPreference[] = ['easy-watch'];
   if (runtimeMinutes !== null && runtimeMinutes <= 102) attentionLevels.push('short-entertaining');
@@ -223,7 +265,12 @@ function inferTraitsFromGenres(
     attentionLevels.push('clever');
   }
 
-  return {popularityTier, moods, contexts, attentionLevels};
+  return {
+    popularityTier,
+    moods: Array.from(moods),
+    contexts: Array.from(contexts),
+    attentionLevels,
+  };
 }
 
 export function normalizeTmdbMovieDetail(detail: TmdbMovieDetail): Movie | null {
@@ -241,7 +288,12 @@ export function normalizeTmdbMovieDetail(detail: TmdbMovieDetail): Movie | null 
     .map((g) => TMDB_GENRE_ID_TO_NAME[g.id])
     .filter((g): g is MovieGenre => Boolean(g));
 
-  const genres: MovieGenre[] = mappedGenres.length > 0 ? mappedGenres : ['Adventure'];
+  // Never fabricate a genre if TMDB didn't match any of the 13 validated Denetflix genres
+  if (mappedGenres.length === 0) {
+    return null;
+  }
+
+  const genres: MovieGenre[] = mappedGenres;
   const directorEntry = detail.credits?.crew?.find((c) => c.job === 'Director');
   const director = directorEntry?.name?.trim() || 'Director uncredited';
   const runtimeMinutes = typeof detail.runtime === 'number' && detail.runtime > 0 ? detail.runtime : null;
@@ -369,40 +421,57 @@ export async function fetchMoviesFromTmdb(
   const clientTimeout = createTimeoutSignal(callerSignal, 6000);
   try {
     const range = mapDecadeRange(preferences.decade);
-    const params = new URLSearchParams({
-      api_key: clientKey,
-      include_adult: 'false',
-      include_video: 'false',
-      language: 'en-US',
-      'primary_release_date.gte': range.gte,
-      'primary_release_date.lte': range.lte,
-      'vote_count.gte': preferences.popularity === 'forgotten-midnight' ? '40' : '80',
-      'vote_count.lte': preferences.popularity === 'cult-favorites' ? '1800' : '1100',
-      'vote_average.gte': '6.4',
-      sort_by: 'vote_average.desc',
-      page: '1',
-    });
+    const withoutGenreIds: number[] = [];
+    if (preferences.exclusions.includes('avoid-horror') || preferences.context === 'family') {
+      withoutGenreIds.push(27);
+    }
+    if (preferences.exclusions.includes('avoid-romance')) {
+      withoutGenreIds.push(10749);
+    }
 
-    if (preferences.genres.length > 0) {
-      const ids = preferences.genres.map((g) => GENRE_NAME_TO_TMDB_ID[g]).filter(Boolean);
-      if (ids.length > 0) {
-        params.set('with_genres', ids.join('|'));
+    const buildDiscoverUrl = (relaxed: boolean) => {
+      const params = new URLSearchParams({
+        api_key: clientKey,
+        include_adult: 'false',
+        include_video: 'false',
+        language: 'en-US',
+        'primary_release_date.gte': range.gte,
+        'primary_release_date.lte': range.lte,
+        'vote_count.gte': relaxed ? '10' : preferences.popularity === 'forgotten-midnight' ? '30' : '60',
+        'vote_count.lte': relaxed ? '2400' : preferences.popularity === 'cult-favorites' ? '1800' : '1200',
+        'vote_average.gte': relaxed ? '5.5' : '6.2',
+        sort_by: relaxed ? 'popularity.desc' : 'vote_average.desc',
+        page: '1',
+      });
+
+      if (preferences.genres.length > 0) {
+        const ids = preferences.genres.map((g) => GENRE_NAME_TO_TMDB_ID[g]).filter(Boolean);
+        if (ids.length > 0) {
+          params.set('with_genres', ids.join('|'));
+        }
       }
-    }
-    if (preferences.origin === 'italy') {
-      params.set('with_origin_country', 'IT');
-    } else if (preferences.origin === 'usa') {
-      params.set('with_origin_country', 'US');
-    } else if (preferences.origin === 'europe') {
-      params.set('with_origin_country', 'FR|DE|GB|ES|CZ|SE|PL');
-    } else if (preferences.origin === 'asia') {
-      params.set('with_origin_country', 'JP|HK|KR|TW|CN');
-    }
-    if (preferences.exclusions.includes('avoid-subtitles')) {
-      params.set('with_original_language', 'en');
-    }
+      if (withoutGenreIds.length > 0) {
+        params.set('without_genres', withoutGenreIds.join(','));
+      }
+      if (preferences.exclusions.includes('avoid-long')) {
+        params.set('with_runtime.lte', '130');
+      }
+      if (preferences.origin === 'italy') {
+        params.set('with_origin_country', 'IT');
+      } else if (preferences.origin === 'usa') {
+        params.set('with_origin_country', 'US');
+      } else if (preferences.origin === 'europe') {
+        params.set('with_origin_country', 'FR|DE|GB|ES|CZ|SE|PL|BE|NL|DK');
+      } else if (preferences.origin === 'asia') {
+        params.set('with_origin_country', 'JP|HK|KR|TW|CN');
+      }
+      if (preferences.exclusions.includes('avoid-subtitles')) {
+        params.set('with_original_language', 'en');
+      }
+      return `https://api.themoviedb.org/3/discover/movie?${params.toString()}`;
+    };
 
-    const discoverRes = await fetch(`https://api.themoviedb.org/3/discover/movie?${params.toString()}`, {
+    const discoverRes = await fetch(buildDiscoverUrl(false), {
       signal: clientTimeout.signal,
     });
     if (discoverRes.status === 401 || discoverRes.status === 403) {
@@ -431,7 +500,22 @@ export async function fetchMoviesFromTmdb(
     }
 
     const discoverJson = (await discoverRes.json()) as {results?: TmdbDiscoverMovie[]};
-    const candidates = (discoverJson.results || []).slice(0, 10);
+    let candidates = (discoverJson.results || []).slice(0, 14);
+
+    if (candidates.length < 7) {
+      const relaxedRes = await fetch(buildDiscoverUrl(true), {signal: clientTimeout.signal});
+      if (relaxedRes.ok) {
+        const relaxedJson = (await relaxedRes.json()) as {results?: TmdbDiscoverMovie[]};
+        const seenIds = new Set(candidates.map((c) => c.id));
+        for (const extra of relaxedJson.results || []) {
+          if (!seenIds.has(extra.id)) {
+            seenIds.add(extra.id);
+            candidates.push(extra);
+          }
+          if (candidates.length >= 14) break;
+        }
+      }
+    }
 
     const detailResults = await Promise.all(
       candidates.map(async (item) => {
