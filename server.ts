@@ -30,6 +30,7 @@ const GENRE_NAME_TO_TMDB_ID: Record<string, number> = {
 
 const wikiPosterCache = new Map<string, {posterUrl: string | null; expiresAt: number}>();
 const WIKI_POSTER_TTL_MS = 24 * 60 * 60 * 1000;
+const amazonAsinCache = new Map<string, {asin: string | null; expiresAt: number}>();
 
 interface CachedAvailabilityPayload {
   status: 'verified' | 'not-found' | 'unverified';
@@ -564,6 +565,90 @@ async function startServer() {
       return res.json({posterUrl});
     } catch {
       return res.json({posterUrl: null});
+    }
+  });
+
+  // Live Amazon physical-media ASIN resolver for non-catalog (TMDB discover) movies
+  app.get('/api/amazon/asin', async (req, res) => {
+    const title = typeof req.query.title === 'string' ? req.query.title.trim() : '';
+    const yearRaw = typeof req.query.year === 'string' ? Number.parseInt(req.query.year, 10) : NaN;
+    if (!title || title.length > 160) {
+      return res.status(400).json({asin: null});
+    }
+
+    const cacheKey = `${title.toLowerCase()}::${Number.isFinite(yearRaw) ? yearRaw : ''}`;
+    const cached = amazonAsinCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return res.json({asin: cached.asin});
+    }
+
+    const normalize = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/&amp;|&/g, ' and ')
+        .replace(/&#x27;|['’‘]/g, '')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const cleanMovieTitle = title.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+    const targetNorm = normalize(cleanMovieTitle);
+    const stopWords = new Set(['the', 'a', 'an', 'of', 'and', 'or', 'in', 'on', 'at', 'to', 'for']);
+    const words = targetNorm.split(' ').filter((w) => w.length >= 2 && !stopWords.has(w));
+    const coreWords = words.length > 0 ? words : targetNorm.split(' ');
+
+    try {
+      const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(
+        `${cleanMovieTitle} Blu-ray`,
+      )}&i=movies-tv&s=date-desc-rank`;
+      const amzRes = await fetch(searchUrl, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+        signal: AbortSignal.timeout(4500),
+      });
+      if (!amzRes.ok) {
+        return res.json({asin: null});
+      }
+      const html = await amzRes.text();
+      const blocks = html.split('data-asin="').slice(1, 14);
+      let bestAsin: string | null = null;
+      let bestScore = -1;
+
+      for (const block of blocks) {
+        const asin = block.slice(0, 10);
+        if (!/^[A-Z0-9]{10}$/.test(asin)) continue;
+        if (block.slice(0, 1200).includes('Sponsored')) continue;
+        const match = block.match(/<h2[^>]*>[\s\S]*?<span[^>]*>([^<]+)<\/span>/);
+        if (!match) continue;
+        const pt = normalize(match[1]);
+        if (/\b(paperback|hardcover|kindle|book|novel|soundtrack|vinyl|lp|cd|poster|mug|shirt)\b/.test(pt)) {
+          continue;
+        }
+        const matchedCount = coreWords.filter((w) => pt.includes(w)).length;
+        if (matchedCount < coreWords.length) continue;
+
+        let score = pt.startsWith(targetNorm) ? 60 : pt.includes(targetNorm) ? 45 : matchedCount * 12;
+        if (/\b(4k|uhd|ultra hd)\b/.test(pt)) score += 20;
+        else if (/\b(blu ray|bluray)\b/.test(pt)) score += 15;
+        else if (/\bdvd\b/.test(pt)) score += 8;
+        if (Number.isFinite(yearRaw) && pt.includes(String(yearRaw))) score += 10;
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestAsin = asin;
+        }
+      }
+
+      amazonAsinCache.set(cacheKey, {
+        asin: bestAsin,
+        expiresAt: Date.now() + WIKI_POSTER_TTL_MS,
+      });
+      return res.json({asin: bestAsin});
+    } catch {
+      return res.json({asin: null});
     }
   });
 

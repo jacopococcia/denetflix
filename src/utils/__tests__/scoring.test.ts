@@ -1,7 +1,12 @@
 import {describe, expect, it} from 'vitest';
+import {VERIFIED_AMAZON_ASINS} from '../../data/amazonAsins';
 import {FALLBACK_MOVIES} from '../../data/fallbackMovies';
 import {DEFAULT_QUIZ_ANSWERS, QUIZ_QUESTIONS} from '../../data/quizQuestions';
-import {buildAmazonSearchUrl, createPhysicalMediaLink} from '../../services/amazonService';
+import {
+  buildAmazonProductUrl,
+  buildAmazonSearchUrl,
+  createPhysicalMediaLink,
+} from '../../services/amazonService';
 import {normalizeTmdbMovieDetail} from '../../services/tmdbService';
 import type {Movie} from '../../types/movie';
 import type {MoodPreference, MovieGenre, MovieOrigin} from '../../types/quiz';
@@ -354,37 +359,32 @@ describe('Denetflix rare-gem scoring and strict recommendation engine', () => {
     expect(decades.size).toBeGreaterThanOrEqual(3);
   });
 
-  it('generates safely encoded Amazon US/international affiliate URLs with jr0605-20 sorted by newest edition', () => {
-    const url = buildAmazonSearchUrl('Danger: Diabolik', 1968, 'US');
-    const parsed = new URL(url);
-    expect(parsed.hostname).toBe('www.amazon.com');
-    expect(parsed.searchParams.get('tag')).toBe('jr0605-20');
-    expect(parsed.searchParams.get('i')).toBe('movies-tv');
-    expect(parsed.searchParams.get('s')).toBe('date-desc-rank');
-    expect(parsed.searchParams.get('k')).toContain('Danger: Diabolik');
-    expect(parsed.searchParams.get('k')).toContain('1968');
+  it('generates canonical /dp/ASIN/?tag= affiliate URLs for Amazon.com (jr0605-20) and Amazon.it (280177-21)', () => {
+    for (const movie of FALLBACK_MOVIES) {
+      const asin = VERIFIED_AMAZON_ASINS[movie.id];
+      expect(asin, `Expected verified ASIN for ${movie.id}`).toMatch(/^[A-Z0-9]{10}$/);
+    }
 
-    const ukLink = createPhysicalMediaLink('Suspiria', 1977, 'GB');
+    const usProductUrl = buildAmazonProductUrl('B0BQZ951MK', 'US');
+    expect(usProductUrl).toBe('https://www.amazon.com/dp/B0BQZ951MK/?tag=jr0605-20');
+
+    const itProductUrl = buildAmazonProductUrl('B00HVOFP9O', 'IT');
+    expect(itProductUrl).toBe('https://www.amazon.it/dp/B00HVOFP9O/?tag=280177-21');
+
+    const ukLink = createPhysicalMediaLink('Suspiria', 1977, 'GB', {asin: 'B08PJNXVBH'});
     expect(ukLink.retailer).toBe('Amazon.com');
-    expect(new URL(ukLink.url).hostname).toBe('www.amazon.com');
-    expect(new URL(ukLink.url).searchParams.get('tag')).toBe('jr0605-20');
-  });
+    expect(ukLink.url).toBe('https://www.amazon.com/dp/B08PJNXVBH/?tag=jr0605-20');
 
-  it('generates Amazon.it affiliate URLs with 280177-21 only when countryCode is IT', () => {
-    const itUrl = buildAmazonSearchUrl('Il Sorpasso', 1962, 'it');
-    const parsed = new URL(itUrl);
-    expect(parsed.hostname).toBe('www.amazon.it');
-    expect(parsed.searchParams.get('tag')).toBe('280177-21');
-    expect(parsed.searchParams.get('i')).toBe('dvd');
-    expect(parsed.searchParams.get('s')).toBe('date-desc-rank');
-    expect(parsed.searchParams.get('k')).toContain('Il Sorpasso');
-    expect(parsed.searchParams.get('k')).toContain('1962');
-
-    const itLink = createPhysicalMediaLink('Profondo Rosso', 1975, 'IT');
+    const itLink = createPhysicalMediaLink('Il Sorpasso', 1962, 'IT', {movieId: 'tmdb-43967'});
     expect(itLink.retailer).toBe('Amazon.it');
-    expect(itLink.label).toContain('Amazon.it');
+    expect(itLink.asin).toBe('B00HVOFP9O');
+    expect(itLink.url).toBe('https://www.amazon.it/dp/B00HVOFP9O/?tag=280177-21');
     expect(itLink.disclosure).toContain('280177-21');
-    expect(new URL(itLink.url).hostname).toBe('www.amazon.it');
-    expect(new URL(itLink.url).searchParams.get('tag')).toBe('280177-21');
+
+    // Fallback search URL preserves regional tags when no ASIN is supplied for uncatalogued titles
+    const fallbackSearch = buildAmazonSearchUrl('Obscure Unlisted Gem', 1971, 'IT');
+    const parsedFallback = new URL(fallbackSearch);
+    expect(parsedFallback.hostname).toBe('www.amazon.it');
+    expect(parsedFallback.searchParams.get('tag')).toBe('280177-21');
   });
 });

@@ -1,4 +1,6 @@
+import {VERIFIED_AMAZON_ASINS} from '../data/amazonAsins';
 import type {PhysicalMediaLink} from '../types/movie';
+import {createTimeoutSignal, getApiBaseUrl} from './tmdbService';
 
 export const AMAZON_AFFILIATE_TAG_INTL = 'jr0605-20';
 export const AMAZON_AFFILIATE_TAG_IT = '280177-21';
@@ -6,6 +8,8 @@ export const AMAZON_AFFILIATE_TAG = AMAZON_AFFILIATE_TAG_INTL;
 
 export const AMAZON_AFFILIATE_DISCLOSURE =
   'As an Amazon Associate, Denetflix earns from qualifying purchases at no extra cost to you. Some purchase links are affiliate links.';
+
+const liveAsinCache = new Map<string, string | null>();
 
 export function getAffiliateTagForCountry(countryCode: string = 'US'): string {
   const normalized = countryCode.trim().toUpperCase();
@@ -18,10 +22,83 @@ export function getAffiliateTagForCountry(countryCode: string = 'US'): string {
 }
 
 /**
- * Generates a region-appropriate Amazon search URL sorted by newest editions
- * (`s=date-desc-rank`) and tagged with the exact Amazon Associates ID:
- * - Italy (`IT`): `https://www.amazon.it/s?...&i=dvd&s=date-desc-rank&tag=280177-21`
- * - English / International (all other countries): `https://www.amazon.com/s?...&i=movies-tv&s=date-desc-rank&tag=jr0605-20`
+ * Looks up a verified physical-media ASIN from the curated catalog.
+ */
+export function lookupVerifiedAsin(movieId?: string): string | null {
+  if (!movieId) return null;
+  const candidate = VERIFIED_AMAZON_ASINS[movieId];
+  if (candidate && /^[A-Z0-9]{10}$/.test(candidate)) {
+    return candidate;
+  }
+  return null;
+}
+
+/**
+ * Resolves a verified Blu-ray / 4K / DVD ASIN synchronously from the curated map
+ * or dynamically via `/api/amazon/asin` for live TMDB titles.
+ */
+export async function resolveLiveAmazonAsin(
+  title: string,
+  year: number,
+  movieId?: string,
+  callerSignal?: AbortSignal,
+): Promise<string | null> {
+  const verified = lookupVerifiedAsin(movieId);
+  if (verified) return verified;
+
+  const cacheKey = `${title.toLowerCase().trim()}::${year}`;
+  if (liveAsinCache.has(cacheKey)) {
+    return liveAsinCache.get(cacheKey) ?? null;
+  }
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return null;
+  }
+
+  const apiBase = getApiBaseUrl();
+  const timeout = createTimeoutSignal(callerSignal, 4000);
+  try {
+    const res = await fetch(
+      `${apiBase}/api/amazon/asin?title=${encodeURIComponent(title)}&year=${encodeURIComponent(String(year))}`,
+      {signal: timeout.signal},
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as {asin?: string | null};
+    const asin =
+      typeof data.asin === 'string' && /^[A-Z0-9]{10}$/.test(data.asin) ? data.asin : null;
+    liveAsinCache.set(cacheKey, asin);
+    return asin;
+  } catch (error) {
+    if ((error as Error)?.name === 'AbortError' && callerSignal?.aborted) {
+      throw error;
+    }
+    return null;
+  } finally {
+    timeout.cleanup();
+  }
+}
+
+/**
+ * Builds the canonical Amazon Associates direct product URL:
+ * - Italy (`IT`): `https://www.amazon.it/dp/ASIN/?tag=280177-21`
+ * - English / International: `https://www.amazon.com/dp/ASIN/?tag=jr0605-20`
+ */
+export function buildAmazonProductUrl(asin: string, countryCode: string = 'US'): string {
+  const cleanAsin = asin.trim().toUpperCase();
+  if (!/^[A-Z0-9]{10}$/.test(cleanAsin)) {
+    throw new Error(`Invalid Amazon ASIN: "${asin}"`);
+  }
+
+  const normalizedCountry = countryCode.trim().toUpperCase() || 'US';
+  const isItaly = normalizedCountry === 'IT';
+  const tag = getAffiliateTagForCountry(normalizedCountry);
+  const host = isItaly ? 'https://www.amazon.it' : 'https://www.amazon.com';
+
+  return `${host}/dp/${cleanAsin}/?tag=${encodeURIComponent(tag)}`;
+}
+
+/**
+ * Fallback search URL used only if no verified ASIN is available (e.g., offline live TMDB match).
  */
 export function buildAmazonSearchUrl(
   title: string,
@@ -53,19 +130,32 @@ export function createPhysicalMediaLink(
   title: string,
   year: number,
   countryCode: string = 'US',
+  options?: {movieId?: string; asin?: string | null},
 ): PhysicalMediaLink {
   const normalizedCountry = countryCode.trim().toUpperCase() || 'US';
   const isItaly = normalizedCountry === 'IT';
   const tag = getAffiliateTagForCountry(normalizedCountry);
 
+  const resolvedAsin =
+    (options?.asin && /^[A-Z0-9]{10}$/.test(options.asin) ? options.asin : null) ||
+    lookupVerifiedAsin(options?.movieId);
+
+  const url = resolvedAsin
+    ? buildAmazonProductUrl(resolvedAsin, normalizedCountry)
+    : buildAmazonSearchUrl(title, year, normalizedCountry);
+
   return {
     retailer: isItaly ? 'Amazon.it' : 'Amazon.com',
-    url: buildAmazonSearchUrl(title, year, normalizedCountry),
-    label: isItaly ? 'Check DVD/Blu-ray on Amazon.it' : 'Check DVD/Blu-ray on Amazon',
+    asin: resolvedAsin ?? undefined,
+    url,
+    label: isItaly ? 'View Blu-ray / DVD on Amazon.it' : 'View Blu-ray / DVD on Amazon',
     disclosure: `Affiliate link (tag: ${tag}). As an Amazon Associate, we earn from qualifying purchases.`,
-    stockNote: isItaly
-      ? 'Opens Amazon Italy Film & TV sorted by the newest available Blu-ray, 4K & DVD editions.'
-      : 'Opens Amazon US Movies & TV sorted by the newest available Blu-ray, 4K & DVD editions.',
+    stockNote: resolvedAsin
+      ? isItaly
+        ? `Opens verified Amazon.it disc edition (ASIN: ${resolvedAsin}).`
+        : `Opens verified Amazon.com disc edition (ASIN: ${resolvedAsin}).`
+      : isItaly
+        ? 'Opens Amazon Italy Film & TV sorted by the newest available Blu-ray, 4K & DVD editions.'
+        : 'Opens Amazon US Movies & TV sorted by the newest available Blu-ray, 4K & DVD editions.',
   };
 }
-

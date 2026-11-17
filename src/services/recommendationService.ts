@@ -13,7 +13,7 @@ import {
   rankAndSelectMovies,
   RESULTS_PER_PAGE,
 } from '../utils/scoring';
-import {createPhysicalMediaLink} from './amazonService';
+import {createPhysicalMediaLink, resolveLiveAmazonAsin} from './amazonService';
 import {resolveFallbackPoster} from './posterService';
 import {
   buildUnverifiedAvailability,
@@ -110,7 +110,7 @@ async function requestGeminiEnhancement(
   }
 }
 
-async function resolvePosterAndAvailabilityForBatch(
+async function resolveMediaAndAvailabilityForBatch(
   movies: Movie[],
   countryCode: string,
   signal?: AbortSignal,
@@ -146,6 +146,16 @@ async function resolvePosterAndAvailabilityForBatch(
             trailerYoutubeId: null,
             trailerTitle: null,
           };
+        }
+      }),
+    ),
+    Promise.all(
+      movies.map(async (movie) => {
+        try {
+          return await resolveLiveAmazonAsin(movie.title, movie.year, movie.id, signal);
+        } catch (error) {
+          if ((error as Error)?.name === 'AbortError' && signal?.aborted) throw error;
+          return null;
         }
       }),
     ),
@@ -208,8 +218,8 @@ export async function generateRecommendations(
   // Eagerly enrich Page 1 (up to 10 picks) + optional Gemini personalized copy
   const firstPageMovies = selectedMovies.slice(0, RESULTS_PER_PAGE);
 
-  const [[resolvedPosters, availabilityAndTrailers], geminiResult] = await Promise.all([
-    resolvePosterAndAvailabilityForBatch(firstPageMovies, preferences.countryCode, signal),
+  const [[resolvedPosters, availabilityAndTrailers, resolvedAsins], geminiResult] = await Promise.all([
+    resolveMediaAndAvailabilityForBatch(firstPageMovies, preferences.countryCode, signal),
     requestGeminiEnhancement(preferences, firstPageMovies, signal),
   ]);
 
@@ -253,6 +263,10 @@ export async function generateRecommendations(
         item.movie.title,
         item.movie.year,
         preferences.countryCode,
+        {
+          movieId: item.movie.id,
+          asin: isPageOne ? resolvedAsins[idx] : undefined,
+        },
       ),
       copySource: aiCopy ? 'gemini' : 'curated',
     };
@@ -293,15 +307,13 @@ export async function enrichRecommendationSlice(
 ): Promise<MovieRecommendation[]> {
   if (items.length === 0) return items;
   const movies = items.map((item) => item.movie);
-  const [resolvedPosters, availabilityAndTrailers] = await resolvePosterAndAvailabilityForBatch(
-    movies,
-    countryCode,
-    signal,
-  );
+  const [resolvedPosters, availabilityAndTrailers, resolvedAsins] =
+    await resolveMediaAndAvailabilityForBatch(movies, countryCode, signal);
 
   return items.map((item, idx) => {
     const resolvedPoster = resolvedPosters[idx] ?? item.movie.posterUrl;
     const liveData = availabilityAndTrailers[idx];
+    const resolvedAsin = resolvedAsins[idx] ?? item.physicalMedia.asin;
     return {
       ...item,
       movie: resolvedPoster
@@ -314,6 +326,10 @@ export async function enrichRecommendationSlice(
       availability: liveData.availability,
       trailerYoutubeId: liveData.trailerYoutubeId,
       trailerTitle: liveData.trailerTitle,
+      physicalMedia: createPhysicalMediaLink(item.movie.title, item.movie.year, countryCode, {
+        movieId: item.movie.id,
+        asin: resolvedAsin,
+      }),
     };
   });
 }
