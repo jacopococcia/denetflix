@@ -35,7 +35,7 @@ export function Footer({onOpenLegalModal}: FooterProps) {
             <p>
               Your quiz answers are used solely to generate recommendations during your session. Denetflix does not collect names, email addresses, or personal data.
             </p>
-            <div className="flex flex-wrap gap-4 pt-1">
+            <div className="flex flex-wrap items-center gap-4 pt-1">
               <button
                 type="button"
                 onClick={() => onOpenLegalModal('privacy')}
@@ -43,6 +43,12 @@ export function Footer({onOpenLegalModal}: FooterProps) {
               >
                 Privacy Policy
               </button>
+              <a
+                href="./privacy.html"
+                className="inline-flex min-h-[44px] items-center font-medium text-[#00D4FF] underline underline-offset-4 hover:text-white"
+              >
+                Privacy Policy (Full Page)
+              </a>
               <button
                 type="button"
                 onClick={() => onOpenLegalModal('terms')}

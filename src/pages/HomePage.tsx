@@ -126,7 +126,7 @@ export function HomePage({countryCode, onChangeCountry, onStartQuiz}: HomePagePr
             <p className="font-display text-sm font-bold text-[#B8FF00] tabular-nums">03. Watch or own the latest disc</p>
             <h3 className="font-display text-lg font-bold text-[#F6F4EE]">Stream or grab the newest edition</h3>
             <p className="text-sm leading-relaxed text-[#A8B1C7]">
-              Check verified streaming listings when available, or jump straight to the newest Blu-ray, 4K & DVD editions on Amazon US.
+              Check verified streaming listings when available, or jump straight to the newest Blu-ray, 4K & DVD editions on Amazon (Amazon.it in Italy).
             </p>
           </div>
         </div>

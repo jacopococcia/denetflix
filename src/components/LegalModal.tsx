@@ -1,4 +1,4 @@
-import {X} from 'lucide-react';
+import {ExternalLink, X} from 'lucide-react';
 import {useEffect} from 'react';
 import {AMAZON_AFFILIATE_DISCLOSURE} from '../services/amazonService';
 import {Button} from './Button';
@@ -31,13 +31,18 @@ export function LegalModal({topic, onClose}: LegalModalProps) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-2xl border border-white/12 bg-[#141724] p-6 text-[#F6F4EE] shadow-2xl"
+        className="flex max-h-[85vh] w-full max-w-xl flex-col rounded-2xl border border-white/12 bg-[#141724] p-6 text-[#F6F4EE] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
-          <h2 id="legal-modal-title" className="font-display text-xl font-bold">
-            {topic === 'privacy' ? 'Privacy Policy' : 'Terms of Use'}
-          </h2>
+          <div>
+            <h2 id="legal-modal-title" className="font-display text-xl font-bold">
+              {topic === 'privacy' ? 'Privacy Policy' : 'Terms of Use'}
+            </h2>
+            {topic === 'privacy' ? (
+              <p className="mt-0.5 text-xs text-[#A8B1C7]">Effective Date: November 17, 2026</p>
+            ) : null}
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -48,17 +53,26 @@ export function LegalModal({topic, onClose}: LegalModalProps) {
           </button>
         </div>
 
-        <div className="mt-4 space-y-3 text-sm leading-relaxed text-[#A8B1C7]">
+        <div className="mt-4 space-y-3.5 overflow-y-auto pr-1 text-sm leading-relaxed text-[#A8B1C7]">
           {topic === 'privacy' ? (
             <>
               <p>
-                <strong className="text-[#F6F4EE]">No accounts or personal profiles:</strong> Denetflix does not ask for your name, email address, or account login.
+                <strong className="text-[#F6F4EE]">1. Zero Personal Data Collection:</strong> Denetflix operates without user accounts, registrations, or profiles. We do not collect, store, or sell your name, email address, IP logs, or personal identifiers.
               </p>
               <p>
-                <strong className="text-[#F6F4EE]">How quiz answers are used:</strong> Your quiz choices and selected country code are used solely to rank 1960s–1990s movie recommendations and check regional availability during your active session.
+                <strong className="text-[#F6F4EE]">2. Session-Only Quiz Processing:</strong> Your quiz answers and selected country code are used ephemerally during your active session solely to filter 1960s–1990s movie recommendations and verify regional streaming availability.
               </p>
               <p>
-                <strong className="text-[#F6F4EE]">Third-party lookups:</strong> When enabled, movie metadata and regional streaming availability are requested from TMDB (including JustWatch watch-provider data), and optional recommendation copy is generated server-side without personal identifiers.
+                <strong className="text-[#F6F4EE]">3. Cookies &amp; Tracking:</strong> Denetflix sets no advertising cookies or behavioral tracking pixels. External storefronts you visit and embedded video players operate under their own cookie and privacy policies.
+              </p>
+              <p>
+                <strong className="text-[#F6F4EE]">4. Amazon Associates Disclosure:</strong> As an Amazon Associate, Denetflix earns from qualifying purchases at no extra cost to you. Physical media links use tag <code className="text-[#F6F4EE]">jr0605-20</code> on Amazon.com for English/international regions and tag <code className="text-[#F6F4EE]">280177-21</code> on Amazon.it when Italy (IT) is selected. Clicking an affiliate link allows Amazon to use cookies for purchase attribution.
+              </p>
+              <p>
+                <strong className="text-[#F6F4EE]">5. Third-Party Services:</strong> Depending on availability checks and trailers, Denetflix requests non-personal movie data from TMDB, JustWatch, and Wikipedia REST APIs. Trailers only load when clicked via privacy-enhanced <code className="text-[#F6F4EE]">youtube-nocookie.com</code> embeds.
+              </p>
+              <p>
+                <strong className="text-[#F6F4EE]">6. Your Rights &amp; Children’s Privacy:</strong> Denetflix is not directed to children under 13 and retains no personal user records. Closing your browser clears your active quiz state, and you can manage third-party cookies anytime in your browser settings.
               </p>
             </>
           ) : (
@@ -70,13 +84,26 @@ export function LegalModal({topic, onClose}: LegalModalProps) {
                 <strong className="text-[#F6F4EE]">Affiliate disclosure:</strong> {AMAZON_AFFILIATE_DISCLOSURE}
               </p>
               <p>
-                <strong className="text-[#F6F4EE]">Attribution:</strong> When live data is enabled, movie metadata and posters are provided via the TMDB API. Denetflix is not endorsed or certified by TMDB or Netflix.
+                <strong className="text-[#F6F4EE]">Attribution:</strong> When live data is enabled, movie metadata and posters are provided via the TMDB API and JustWatch listings. Denetflix is not endorsed or certified by TMDB or Netflix.
               </p>
             </>
           )}
         </div>
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+          {topic === 'privacy' ? (
+            <a
+              href="./privacy.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-[44px] items-center gap-1.5 text-xs font-semibold text-[#00D4FF] underline underline-offset-4 hover:text-white"
+            >
+              <span>Open standalone Privacy Policy page</span>
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
+          ) : (
+            <span />
+          )}
           <Button variant="primary" onClick={onClose}>
             Close
           </Button>
@@ -85,3 +112,4 @@ export function LegalModal({topic, onClose}: LegalModalProps) {
     </div>
   );
 }
+

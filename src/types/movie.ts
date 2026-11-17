@@ -41,7 +41,7 @@ export interface AvailabilityAndTrailerResult {
 }
 
 export interface PhysicalMediaLink {
-  retailer: 'Amazon.com';
+  retailer: 'Amazon.com' | 'Amazon.it';
   url: string;
   label: string;
   disclosure: string;

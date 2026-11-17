@@ -229,7 +229,11 @@ export async function generateRecommendations(
       availability: liveData.availability,
       trailerYoutubeId: liveData.trailerYoutubeId,
       trailerTitle: liveData.trailerTitle,
-      physicalMedia: createPhysicalMediaLink(item.movie.title, item.movie.year),
+      physicalMedia: createPhysicalMediaLink(
+        item.movie.title,
+        item.movie.year,
+        preferences.countryCode,
+      ),
       copySource: aiCopy ? 'gemini' : 'curated',
     };
   });

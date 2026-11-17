@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {FALLBACK_MOVIES} from '../../data/fallbackMovies';
 import {DEFAULT_QUIZ_ANSWERS, QUIZ_QUESTIONS} from '../../data/quizQuestions';
-import {buildAmazonSearchUrl} from '../../services/amazonService';
+import {buildAmazonSearchUrl, createPhysicalMediaLink} from '../../services/amazonService';
 import {normalizeTmdbMovieDetail} from '../../services/tmdbService';
 import type {Movie} from '../../types/movie';
 import type {MoodPreference, MovieGenre, MovieOrigin} from '../../types/quiz';
@@ -343,8 +343,8 @@ describe('Denetflix rare-gem scoring and strict recommendation engine', () => {
     expect(decades.size).toBeGreaterThanOrEqual(3);
   });
 
-  it('generates safely encoded Amazon US affiliate URLs with jr0605-20 sorted by newest edition', () => {
-    const url = buildAmazonSearchUrl('Danger: Diabolik', 1968);
+  it('generates safely encoded Amazon US/international affiliate URLs with jr0605-20 sorted by newest edition', () => {
+    const url = buildAmazonSearchUrl('Danger: Diabolik', 1968, 'US');
     const parsed = new URL(url);
     expect(parsed.hostname).toBe('www.amazon.com');
     expect(parsed.searchParams.get('tag')).toBe('jr0605-20');
@@ -352,5 +352,28 @@ describe('Denetflix rare-gem scoring and strict recommendation engine', () => {
     expect(parsed.searchParams.get('s')).toBe('date-desc-rank');
     expect(parsed.searchParams.get('k')).toContain('Danger: Diabolik');
     expect(parsed.searchParams.get('k')).toContain('1968');
+
+    const ukLink = createPhysicalMediaLink('Suspiria', 1977, 'GB');
+    expect(ukLink.retailer).toBe('Amazon.com');
+    expect(new URL(ukLink.url).hostname).toBe('www.amazon.com');
+    expect(new URL(ukLink.url).searchParams.get('tag')).toBe('jr0605-20');
+  });
+
+  it('generates Amazon.it affiliate URLs with 280177-21 only when countryCode is IT', () => {
+    const itUrl = buildAmazonSearchUrl('Il Sorpasso', 1962, 'it');
+    const parsed = new URL(itUrl);
+    expect(parsed.hostname).toBe('www.amazon.it');
+    expect(parsed.searchParams.get('tag')).toBe('280177-21');
+    expect(parsed.searchParams.get('i')).toBe('dvd');
+    expect(parsed.searchParams.get('s')).toBe('date-desc-rank');
+    expect(parsed.searchParams.get('k')).toContain('Il Sorpasso');
+    expect(parsed.searchParams.get('k')).toContain('1962');
+
+    const itLink = createPhysicalMediaLink('Profondo Rosso', 1975, 'IT');
+    expect(itLink.retailer).toBe('Amazon.it');
+    expect(itLink.label).toContain('Amazon.it');
+    expect(itLink.disclosure).toContain('280177-21');
+    expect(new URL(itLink.url).hostname).toBe('www.amazon.it');
+    expect(new URL(itLink.url).searchParams.get('tag')).toBe('280177-21');
   });
 });
