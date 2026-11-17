@@ -4,6 +4,7 @@ import {Footer} from './components/Footer';
 import {Header} from './components/Header';
 import {LegalModal} from './components/LegalModal';
 import {LoadingMessages} from './components/LoadingMessages';
+import {RetroBackdrop} from './components/RetroBackdrop';
 import {DEFAULT_QUIZ_ANSWERS} from './data/quizQuestions';
 import {HomePage} from './pages/HomePage';
 import {QuizPage} from './pages/QuizPage';
@@ -159,7 +160,9 @@ export default function App() {
   };
 
   return (
-    <div className="film-grain flex min-h-screen flex-col bg-[#0B0D14] text-[#F6F4EE]">
+    <div className="film-grain relative flex min-h-screen flex-col bg-[#0B0D14] text-[#F6F4EE]">
+      <RetroBackdrop />
+
       <Header
         activeView={activeView}
         onStartQuiz={handleStartQuiz}
@@ -167,7 +170,7 @@ export default function App() {
         onNavigateSection={handleNavigateSection}
       />
 
-      <main className="flex-1">
+      <main className="relative z-10 flex-1">
         {errorMessage ? (
           <div className="mx-auto max-w-3xl px-4 pt-6 sm:px-6">
             <ErrorBanner title="Could not load lineup" message={errorMessage} />
@@ -214,7 +217,9 @@ export default function App() {
         ) : null}
       </main>
 
-      <Footer onOpenLegalModal={setLegalTopic} />
+      <div className="relative z-10">
+        <Footer onOpenLegalModal={setLegalTopic} />
+      </div>
       <LegalModal topic={legalTopic} onClose={() => setLegalTopic(null)} />
     </div>
   );
