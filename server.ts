@@ -28,6 +28,33 @@ const GENRE_NAME_TO_TMDB_ID: Record<string, number> = {
   War: 10752,
 };
 
+const GENRE_NAME_TO_JW_CODE: Record<string, string> = {
+  Action: 'act',
+  Adventure: 'act',
+  Comedy: 'cmy',
+  'Science fiction': 'scf',
+  Fantasy: 'fnt',
+  Horror: 'hrr',
+  Thriller: 'trl',
+  Mystery: 'trl',
+  Romance: 'rma',
+  Crime: 'crm',
+  Family: 'fml',
+  Musical: 'msc',
+  War: 'war',
+};
+
+const JW_EUROPE_COUNTRIES = [
+  'FR', 'DE', 'GB', 'ES', 'CZ', 'CS', 'SE', 'PL', 'BE', 'NL', 'DK', 'NO', 'AT', 'CH', 'HU', 'PT', 'IE', 'FI', 'GR', 'RO', 'RU',
+];
+const JW_ASIA_COUNTRIES = ['JP', 'HK', 'KR', 'TW', 'CN', 'TH', 'IN', 'PH', 'ID', 'VN'];
+const JW_ENGLISH_PRIMARY = new Set(['US', 'GB', 'CA', 'AU', 'NZ', 'IE']);
+const JW_EUROPE_SET = new Set(JW_EUROPE_COUNTRIES);
+const JW_ASIA_SET = new Set(JW_ASIA_COUNTRIES);
+
+const discoverCatalogServerCache = new Map<string, {movies: unknown[]; expiresAt: number}>();
+const DISCOVER_CACHE_TTL_MS = 10 * 60 * 1000;
+
 const wikiPosterCache = new Map<string, {posterUrl: string | null; expiresAt: number}>();
 const WIKI_POSTER_TTL_MS = 24 * 60 * 60 * 1000;
 const amazonAsinCache = new Map<string, {asin: string | null; expiresAt: number}>();
@@ -652,6 +679,324 @@ async function startServer() {
     }
   });
 
+  // Keyless exhaustive 1960–1999 cult catalog discovery via JustWatch GraphQL + optional TMDB
+  app.post('/api/discover', async (req, res) => {
+    try {
+      const preferences = req.body as {
+        decade?: string;
+        origin?: string;
+        genres?: string[];
+        mood?: string;
+        popularity?: string;
+        context?: string;
+        exclusions?: string[];
+        countryCode?: string;
+        shuffleSeed?: number;
+      };
+
+      const decade = preferences?.decade || 'surprise';
+      const origin = preferences?.origin || 'any';
+      const requestedGenres = Array.isArray(preferences?.genres) ? preferences.genres : [];
+      const popularity = preferences?.popularity || 'cult-favorites';
+      const exclusions = Array.isArray(preferences?.exclusions) ? preferences.exclusions : [];
+      const avoidHorror = exclusions.includes('avoid-horror') || preferences?.context === 'family';
+      const avoidRomance = exclusions.includes('avoid-romance');
+      const avoidLong = exclusions.includes('avoid-long');
+      const avoidSubtitles = exclusions.includes('avoid-subtitles');
+      const shuffleSeed =
+        typeof preferences?.shuffleSeed === 'number' && Number.isFinite(preferences.shuffleSeed)
+          ? Math.abs(Math.floor(preferences.shuffleSeed))
+          : 0;
+
+      const yearRange =
+        decade === '1960s'
+          ? {min: 1960, max: 1969}
+          : decade === '1970s'
+            ? {min: 1970, max: 1979}
+            : decade === '1980s'
+              ? {min: 1980, max: 1989}
+              : decade === '1990s'
+                ? {min: 1990, max: 1999}
+                : {min: 1960, max: 1999};
+
+      const cacheKey = JSON.stringify({
+        decade,
+        origin,
+        genres: [...requestedGenres].sort(),
+        popularity,
+        avoidHorror,
+        avoidRomance,
+        avoidLong,
+        avoidSubtitles,
+        bucket: shuffleSeed % 6,
+      });
+
+      const cached = discoverCatalogServerCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now() && cached.movies.length > 0) {
+        return res.json({
+          ok: true,
+          sources: ['justwatch'],
+          totalDiscovered: cached.movies.length,
+          movies: cached.movies,
+        });
+      }
+
+      const jwGenresToQuery: string[] = [];
+      for (const g of requestedGenres) {
+        const code = GENRE_NAME_TO_JW_CODE[g];
+        if (code && !jwGenresToQuery.includes(code)) {
+          jwGenresToQuery.push(code);
+        }
+      }
+      // If user picked no specific genre, sweep across 4 varied non-mainstream shelves
+      if (jwGenresToQuery.length === 0) {
+        const pool = ['hrr', 'scf', 'trl', 'crm', 'cmy', 'act', 'fnt', 'war'].filter((code) => {
+          if (avoidHorror && code === 'hrr') return false;
+          if (avoidRomance && code === 'rma') return false;
+          return true;
+        });
+        const start = shuffleSeed % pool.length;
+        for (let i = 0; i < 4; i += 1) {
+          jwGenresToQuery.push(pool[(start + i) % pool.length]);
+        }
+      }
+
+      let filterCountries: string[] | undefined;
+      if (origin === 'italy') filterCountries = ['IT'];
+      else if (origin === 'usa') filterCountries = ['US'];
+      else if (origin === 'europe') filterCountries = JW_EUROPE_COUNTRIES;
+      else if (origin === 'asia') filterCountries = JW_ASIA_COUNTRIES;
+
+      const JW_CATALOG_QUERY = `
+        query DiscoverCatalog($country: Country!, $language: Language!, $first: Int!, $after: String, $filter: TitleFilter) {
+          popularTitles(country: $country, first: $first, after: $after, filter: $filter) {
+            totalCount
+            edges {
+              node {
+                id
+                objectType
+                content(country: $country, language: $language) {
+                  title
+                  originalReleaseYear
+                  runtime
+                  shortDescription
+                  productionCountries
+                  posterUrl
+                  genres { shortName }
+                  credits { role name }
+                  externalIds { tmdbId }
+                  scoring { imdbVotes imdbScore tmdbPopularity }
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      interface JwCatalogEdge {
+        node?: {
+          id?: string;
+          objectType?: string;
+          content?: {
+            title?: string;
+            originalReleaseYear?: number;
+            runtime?: number;
+            shortDescription?: string;
+            productionCountries?: string[];
+            posterUrl?: string;
+            genres?: Array<{shortName?: string}>;
+            credits?: Array<{role?: string; name?: string}>;
+            externalIds?: {tmdbId?: string};
+            scoring?: {imdbVotes?: number; imdbScore?: number; tmdbPopularity?: number};
+          };
+        };
+      }
+
+      const runJwSlice = async (genreCode: string, offset: number, first = 50) => {
+        const filter: Record<string, unknown> = {
+          objectTypes: ['MOVIE'],
+          releaseYear: yearRange,
+          genres: [genreCode],
+        };
+        if (filterCountries) {
+          filter.productionCountries = filterCountries;
+        }
+        const after = offset > 0 ? Buffer.from(String(offset)).toString('base64') : undefined;
+        const r = await fetch('https://apis.justwatch.com/graphql', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (compatible; Denetflix/1.0)',
+          },
+          body: JSON.stringify({
+            query: JW_CATALOG_QUERY,
+            variables: {
+              country: 'US',
+              language: 'en',
+              first,
+              after,
+              filter,
+            },
+          }),
+          signal: AbortSignal.timeout(4800),
+        });
+        if (!r.ok) return {totalCount: 0, edges: [] as JwCatalogEdge[]};
+        const j = (await r.json()) as {
+          data?: {popularTitles?: {totalCount?: number; edges?: JwCatalogEdge[]}};
+        };
+        return {
+          totalCount: j.data?.popularTitles?.totalCount ?? 0,
+          edges: j.data?.popularTitles?.edges ?? [],
+        };
+      };
+
+      // Step 1: Query initial slices per selected genre in parallel
+      const initialBatches = await Promise.all(
+        jwGenresToQuery.map((code, idx) => {
+          // Vary initial offset subtly if seed > 0 so fresh searches rotate deep shelf entries too
+          const seedJump = shuffleSeed > 0 ? ((shuffleSeed + idx * 7) % 4) * 20 : 0;
+          return runJwSlice(code, seedJump, 50).catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]}));
+        }),
+      );
+
+      // Step 2: For any genre with deep catalog (totalCount > 50), dig deeper in parallel!
+      const deepPromises: Array<Promise<{totalCount: number; edges: JwCatalogEdge[]}>> = [];
+      initialBatches.forEach((batch, idx) => {
+        const code = jwGenresToQuery[idx];
+        const total = batch.totalCount;
+        if (total > 55) {
+          const maxSafe = Math.max(0, total - 50);
+          const tierRatio =
+            popularity === 'rare-international'
+              ? 0.55
+              : popularity === 'forgotten-midnight'
+                ? 0.36
+                : 0.2;
+          const jitter = ((shuffleSeed * 37 + idx * 29) % 100) / 500; // up to +0.20 variation
+          const offset1 = Math.min(maxSafe, Math.max(40, Math.floor(total * (tierRatio + jitter))));
+          deepPromises.push(
+            runJwSlice(code, offset1, 50).catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
+          );
+          if (total > 180) {
+            const offset2 = Math.min(
+              maxSafe,
+              Math.max(80, Math.floor(total * Math.min(0.85, tierRatio + 0.35 + jitter * 0.5))),
+            );
+            if (Math.abs(offset2 - offset1) >= 40) {
+              deepPromises.push(
+                runJwSlice(code, offset2, 45).catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
+              );
+            }
+          }
+        }
+      });
+
+      const deepBatches = deepPromises.length > 0 ? await Promise.all(deepPromises) : [];
+      const allEdges = [...initialBatches, ...deepBatches].flatMap((b) => b.edges);
+
+      const seenJwKeys = new Set<string>();
+      const collected: Array<{
+        id: string;
+        tmdbId?: number;
+        title: string;
+        year: number;
+        runtime: number | null;
+        overview: string;
+        productionCountries: string[];
+        posterUrl: string | null;
+        genreCodes: string[];
+        director: string;
+        imdbVotes: number;
+        imdbScore: number | null;
+      }> = [];
+
+      for (const edge of allEdges) {
+        const node = edge?.node;
+        const c = node?.content;
+        if (!node || node.objectType !== 'MOVIE' || !c?.title || !c.originalReleaseYear) continue;
+
+        const year = c.originalReleaseYear;
+        if (year < yearRange.min || year > yearRange.max) continue;
+
+        const countries = (c.productionCountries || []).map((x) => x.trim().toUpperCase()).filter(Boolean);
+        const primary = countries[0] || '';
+
+        if (origin === 'italy' && primary !== 'IT') continue;
+        if (origin === 'usa' && primary !== 'US') continue;
+        if (origin === 'europe' && !JW_EUROPE_SET.has(primary)) continue;
+        if (origin === 'asia' && !JW_ASIA_SET.has(primary)) continue;
+
+        if (avoidSubtitles && !JW_ENGLISH_PRIMARY.has(primary)) continue;
+
+        const genreCodes = (c.genres || []).map((g) => g.shortName || '').filter(Boolean);
+        if (avoidHorror && genreCodes.includes('hrr')) continue;
+        if (avoidRomance && genreCodes.includes('rma')) continue;
+
+        const runtime = typeof c.runtime === 'number' && c.runtime > 0 ? c.runtime : null;
+        if (avoidLong && runtime !== null && runtime > 130) continue;
+
+        // Filter out mainstream household megahits while preserving rich cult/sleeper catalog
+        const imdbVotes = typeof c.scoring?.imdbVotes === 'number' ? c.scoring.imdbVotes : 0;
+        const maxAllowedVotes =
+          origin === 'italy' || origin === 'asia'
+            ? 190000
+            : popularity === 'rare-international'
+              ? 85000
+              : popularity === 'forgotten-midnight'
+                ? 110000
+                : 155000;
+        if (imdbVotes > maxAllowedVotes) continue;
+
+        const dedupeKey = `${c.title.toLowerCase().trim()}::${year}`;
+        if (seenJwKeys.has(dedupeKey)) continue;
+        seenJwKeys.add(dedupeKey);
+
+        const directors = (c.credits || [])
+          .filter((cr) => cr.role === 'DIRECTOR' && cr.name)
+          .map((cr) => cr.name!.trim());
+        const tmdbNumeric = c.externalIds?.tmdbId
+          ? Number.parseInt(c.externalIds.tmdbId, 10)
+          : NaN;
+
+        const posterUrl = c.posterUrl
+          ? `https://images.justwatch.com${c.posterUrl.replace('{profile}', 's592').replace('{format}', 'jpg')}`
+          : null;
+
+        collected.push({
+          id: node.id ? `jw-${node.id.replace(/[^a-zA-Z0-9_-]/g, '')}` : `jw-${collected.length}-${year}`,
+          tmdbId: Number.isFinite(tmdbNumeric) && tmdbNumeric > 0 ? tmdbNumeric : undefined,
+          title: c.title,
+          year,
+          runtime,
+          overview: c.shortDescription?.trim() || '',
+          productionCountries: countries,
+          posterUrl,
+          genreCodes,
+          director: directors.slice(0, 2).join(', ') || 'Director uncredited',
+          imdbVotes,
+          imdbScore: typeof c.scoring?.imdbScore === 'number' ? c.scoring.imdbScore : null,
+        });
+      }
+
+      if (collected.length > 0) {
+        discoverCatalogServerCache.set(cacheKey, {
+          movies: collected,
+          expiresAt: Date.now() + DISCOVER_CACHE_TTL_MS,
+        });
+      }
+
+      return res.json({
+        ok: true,
+        sources: ['justwatch'],
+        totalDiscovered: collected.length,
+        movies: collected,
+      });
+    } catch (error) {
+      console.error('[Denetflix Server] /api/discover error:', error);
+      return res.json({ok: false, sources: [], totalDiscovered: 0, movies: []});
+    }
+  });
+
   // Server-side TMDB discover proxy targeting rare, cult, Italian & international gems (never mainstream)
   app.post('/api/tmdb/discover', async (req, res) => {
     const tmdbKey = getTmdbKey();
@@ -667,6 +1012,7 @@ async function startServer() {
         popularity?: string;
         context?: string;
         exclusions?: string[];
+        shuffleSeed?: number;
       };
 
       const range = getDecadeDates(preferences?.decade || 'surprise');
@@ -679,7 +1025,12 @@ async function startServer() {
         withoutGenreIds.push(10749);
       }
 
-      const buildDiscoverParams = (relaxed: boolean) => {
+      const shufflePage =
+        typeof preferences?.shuffleSeed === 'number' && Number.isFinite(preferences.shuffleSeed)
+          ? (Math.abs(Math.floor(preferences.shuffleSeed)) % 3) + 1
+          : 1;
+
+      const buildDiscoverParams = (relaxed: boolean, genreIdOverride?: number, pageNum = 1) => {
         const params = new URLSearchParams({
           api_key: tmdbKey,
           include_adult: 'false',
@@ -691,10 +1042,12 @@ async function startServer() {
           'vote_count.lte': relaxed ? '2400' : preferences?.popularity === 'cult-favorites' ? '1800' : '1200',
           'vote_average.gte': relaxed ? '5.5' : '6.2',
           sort_by: relaxed ? 'popularity.desc' : 'vote_average.desc',
-          page: '1',
+          page: String(pageNum),
         });
 
-        if (Array.isArray(preferences?.genres) && preferences.genres.length > 0) {
+        if (genreIdOverride) {
+          params.set('with_genres', String(genreIdOverride));
+        } else if (Array.isArray(preferences?.genres) && preferences.genres.length > 0) {
           const ids = preferences.genres
             .map((g) => GENRE_NAME_TO_TMDB_ID[g])
             .filter((id): id is number => Boolean(id));
@@ -726,28 +1079,44 @@ async function startServer() {
         return params;
       };
 
-      const discoverRes = await fetch(
-        `https://api.themoviedb.org/3/discover/movie?${buildDiscoverParams(false).toString()}`,
-        {signal: AbortSignal.timeout(5000)},
+      const genreIds = Array.isArray(preferences?.genres)
+        ? preferences.genres.map((g) => GENRE_NAME_TO_TMDB_ID[g]).filter((id): id is number => Boolean(id))
+        : [];
+
+      const seedUrls =
+        genreIds.length > 1
+          ? genreIds.map(
+              (gid, idx) =>
+                `https://api.themoviedb.org/3/discover/movie?${buildDiscoverParams(false, gid, idx === 0 ? shufflePage : 1).toString()}`,
+            )
+          : [
+              `https://api.themoviedb.org/3/discover/movie?${buildDiscoverParams(false, undefined, 1).toString()}`,
+              `https://api.themoviedb.org/3/discover/movie?${buildDiscoverParams(false, undefined, shufflePage === 1 ? 2 : shufflePage).toString()}`,
+            ];
+
+      const discoverResponses = await Promise.all(
+        seedUrls.map((u) => fetch(u, {signal: AbortSignal.timeout(5000)}).catch(() => null)),
       );
 
-      if (discoverRes.status === 401 || discoverRes.status === 403) {
-        return res.json({
-          configured: true,
-          movies: [],
-          errorCode: 'invalid-key',
-          message: 'TMDB API key was rejected. Showing our curated rare-gem catalog instead.',
-        });
-      }
-      if (discoverRes.status === 429) {
-        return res.json({
-          configured: true,
-          movies: [],
-          errorCode: 'rate-limit',
-          message: 'Movie database rate limit reached briefly. Showing curated rare-gem picks.',
-        });
-      }
-      if (!discoverRes.ok) {
+      const firstValid = discoverResponses.find((r) => r && r.ok);
+      if (!firstValid) {
+        const statusRes = discoverResponses.find((r) => r !== null);
+        if (statusRes?.status === 401 || statusRes?.status === 403) {
+          return res.json({
+            configured: true,
+            movies: [],
+            errorCode: 'invalid-key',
+            message: 'TMDB API key was rejected. Showing our curated rare-gem catalog instead.',
+          });
+        }
+        if (statusRes?.status === 429) {
+          return res.json({
+            configured: true,
+            movies: [],
+            errorCode: 'rate-limit',
+            message: 'Movie database rate limit reached briefly. Showing curated rare-gem picks.',
+          });
+        }
         return res.json({
           configured: true,
           movies: [],
@@ -756,46 +1125,34 @@ async function startServer() {
         });
       }
 
-      const discoverJson = (await discoverRes.json()) as {
-        results?: Array<{id: number}>;
-        total_pages?: number;
-      };
-      const candidates = (discoverJson.results || []).slice(0, 20);
-
-      if (candidates.length < 15 && (discoverJson.total_pages ?? 1) > 1) {
-        const page2Params = buildDiscoverParams(false);
-        page2Params.set('page', '2');
-        const page2Res = await fetch(
-          `https://api.themoviedb.org/3/discover/movie?${page2Params.toString()}`,
-          {signal: AbortSignal.timeout(5000)},
-        );
-        if (page2Res.ok) {
-          const page2Json = (await page2Res.json()) as {results?: Array<{id: number}>};
-          const seenIds = new Set(candidates.map((c) => c.id));
-          for (const extra of page2Json.results || []) {
-            if (!seenIds.has(extra.id)) {
-              seenIds.add(extra.id);
-              candidates.push(extra);
-            }
-            if (candidates.length >= 24) break;
+      const candidates: Array<{id: number}> = [];
+      const seenIds = new Set<number>();
+      for (const r of discoverResponses) {
+        if (!r || !r.ok) continue;
+        const j = (await r.json()) as {results?: Array<{id: number}>};
+        for (const item of j.results || []) {
+          if (!seenIds.has(item.id)) {
+            seenIds.add(item.id);
+            candidates.push(item);
           }
+          if (candidates.length >= 40) break;
         }
+        if (candidates.length >= 40) break;
       }
 
-      if (candidates.length < 10) {
+      if (candidates.length < 15) {
         const relaxedRes = await fetch(
-          `https://api.themoviedb.org/3/discover/movie?${buildDiscoverParams(true).toString()}`,
+          `https://api.themoviedb.org/3/discover/movie?${buildDiscoverParams(true, undefined, 1).toString()}`,
           {signal: AbortSignal.timeout(5000)},
-        );
-        if (relaxedRes.ok) {
+        ).catch(() => null);
+        if (relaxedRes?.ok) {
           const relaxedJson = (await relaxedRes.json()) as {results?: Array<{id: number}>};
-          const seenIds = new Set(candidates.map((c) => c.id));
           for (const extra of relaxedJson.results || []) {
             if (!seenIds.has(extra.id)) {
               seenIds.add(extra.id);
               candidates.push(extra);
             }
-            if (candidates.length >= 24) break;
+            if (candidates.length >= 40) break;
           }
         }
       }

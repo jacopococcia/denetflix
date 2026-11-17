@@ -14,12 +14,13 @@ import {
   RESULTS_PER_PAGE,
 } from '../utils/scoring';
 import {createPhysicalMediaLink, resolveLiveAmazonAsin} from './amazonService';
-import {resolveFallbackPoster} from './posterService';
+import {discoverLiveCatalog} from './catalogDiscoveryService';
+import {resolveFallbackPoster, resolveWikipediaSummary} from './posterService';
 import {
   buildUnverifiedAvailability,
   fetchAvailabilityAndTrailer,
 } from './streamingService';
-import {createTimeoutSignal, fetchMoviesFromTmdb, getApiBaseUrl} from './tmdbService';
+import {createTimeoutSignal, getApiBaseUrl} from './tmdbService';
 
 function validateGeminiResponse(
   payload: unknown,
@@ -118,12 +119,18 @@ async function resolveMediaAndAvailabilityForBatch(
   return Promise.all([
     Promise.all(
       movies.map(async (movie) => {
-        if (movie.posterUrl) return movie.posterUrl;
+        if (movie.posterUrl) {
+          return {posterUrl: movie.posterUrl, extract: null as string | null};
+        }
         try {
-          return await resolveFallbackPoster(movie.wikiSlug, signal);
+          if (movie.id.startsWith('wd-') && movie.wikiSlug) {
+            return await resolveWikipediaSummary(movie.wikiSlug, signal);
+          }
+          const url = await resolveFallbackPoster(movie.wikiSlug, signal);
+          return {posterUrl: url, extract: null as string | null};
         } catch (error) {
           if ((error as Error)?.name === 'AbortError' && signal?.aborted) throw error;
-          return null;
+          return {posterUrl: null as string | null, extract: null as string | null};
         }
       }),
     ),
@@ -163,34 +170,47 @@ async function resolveMediaAndAvailabilityForBatch(
 }
 
 /**
- * Generates ALL matching rare/cult retro movie recommendations (no arbitrary 7-film cap),
- * eagerly resolving posters, live JustWatch/TMDB availability, verified YouTube trailers,
- * and optional Gemini notes for Page 1 (first 10 picks), while preparing remaining pages
- * for instant on-demand enrichment as the user pages through 10 results at a time.
+ * Generates ALL matching rare/cult retro movie recommendations across our exhaustive
+ * live 1960–1999 discovery pipeline (JustWatch GraphQL + TMDB + Wikidata/Wikipedia) + curated vault,
+ * rotating matches dynamically with shuffleSeed and enriching Page 1 (10 picks) eagerly.
  */
 export async function generateRecommendations(
   answers: QuizAnswersMap,
   countryCode: string,
   signal?: AbortSignal,
+  options?: {shuffleSeed?: number},
 ): Promise<RecommendationBundle> {
   const preferences = buildUserPreferences(answers, countryCode);
+  const shuffleSeed =
+    typeof options?.shuffleSeed === 'number' && Number.isFinite(options.shuffleSeed)
+      ? options.shuffleSeed
+      : Math.floor(Date.now() % 100000) + Math.floor(Math.random() * 997);
 
-  const tmdbResult = await fetchMoviesFromTmdb(preferences, signal);
+  const discoveryResult = await discoverLiveCatalog(
+    preferences,
+    {shuffleSeed},
+    signal,
+  );
 
   const mergedByKey = new Map<string, Movie>();
   for (const movie of FALLBACK_MOVIES) {
     mergedByKey.set(`${movie.title.toLowerCase()}::${movie.year}`, movie);
   }
-  for (const liveMovie of tmdbResult.movies) {
+  for (const liveMovie of discoveryResult.movies) {
     const key = `${liveMovie.title.toLowerCase()}::${liveMovie.year}`;
     const existing = mergedByKey.get(key);
     if (existing) {
       mergedByKey.set(key, {
         ...existing,
-        tmdbId: liveMovie.tmdbId,
+        tmdbId: liveMovie.tmdbId ?? existing.tmdbId,
+        wikiSlug: liveMovie.wikiSlug ?? existing.wikiSlug,
         posterUrl: liveMovie.posterUrl ?? existing.posterUrl,
         posterSource: liveMovie.posterUrl ? 'tmdb' : existing.posterSource,
         runtimeMinutes: liveMovie.runtimeMinutes ?? existing.runtimeMinutes,
+        synopsis:
+          existing.synopsis.length > (liveMovie.synopsis?.length ?? 0)
+            ? existing.synopsis
+            : liveMovie.synopsis,
         isDemoData: false,
       });
     } else {
@@ -199,7 +219,7 @@ export async function generateRecommendations(
   }
 
   const allCandidates = Array.from(mergedByKey.values());
-  const ranked = rankAndSelectMovies(allCandidates, preferences);
+  const ranked = rankAndSelectMovies(allCandidates, preferences, undefined, shuffleSeed);
 
   const selectedMovies = ranked.map((r) => r.movie);
 
@@ -208,9 +228,9 @@ export async function generateRecommendations(
     return {
       personalizedIntro: emptyDiagnostics.reason,
       recommendations: [],
-      dataMode: tmdbResult.liveTmdbUsed ? 'hybrid' : 'demo-fallback',
+      dataMode: discoveryResult.liveCatalogUsed ? 'hybrid' : 'demo-fallback',
       aiEnhanced: false,
-      notice: tmdbResult.message,
+      notice: discoveryResult.message,
       emptyDiagnostics,
     };
   }
@@ -218,7 +238,7 @@ export async function generateRecommendations(
   // Eagerly enrich Page 1 (up to 10 picks) + optional Gemini personalized copy
   const firstPageMovies = selectedMovies.slice(0, RESULTS_PER_PAGE);
 
-  const [[resolvedPosters, availabilityAndTrailers, resolvedAsins], geminiResult] = await Promise.all([
+  const [[resolvedMedia, availabilityAndTrailers, resolvedAsins], geminiResult] = await Promise.all([
     resolveMediaAndAvailabilityForBatch(firstPageMovies, preferences.countryCode, signal),
     requestGeminiEnhancement(preferences, firstPageMovies, signal),
   ]);
@@ -229,14 +249,23 @@ export async function generateRecommendations(
 
   const recommendations: MovieRecommendation[] = ranked.map((item, idx) => {
     const isPageOne = idx < firstPageMovies.length;
-    const resolvedPoster = isPageOne ? resolvedPosters[idx] : item.movie.posterUrl;
-    const enrichedMovie: Movie = resolvedPoster
-      ? {
-          ...item.movie,
-          posterUrl: resolvedPoster,
-          posterSource: item.movie.posterSource === 'tmdb' ? 'tmdb' : 'wikipedia',
-        }
-      : item.movie;
+    const media = isPageOne ? resolvedMedia[idx] : null;
+    const resolvedPoster = media?.posterUrl ?? item.movie.posterUrl;
+    const resolvedExtract = media?.extract;
+
+    const enrichedMovie: Movie = {
+      ...item.movie,
+      posterUrl: resolvedPoster,
+      posterSource: resolvedPoster
+        ? item.movie.posterSource === 'tmdb'
+          ? 'tmdb'
+          : 'wikipedia'
+        : item.movie.posterSource,
+      synopsis:
+        resolvedExtract && item.movie.id.startsWith('wd-')
+          ? resolvedExtract
+          : item.movie.synopsis,
+    };
 
     const aiCopy = geminiMap.get(item.movie.id);
     const liveData = isPageOne
@@ -273,13 +302,13 @@ export async function generateRecommendations(
   });
 
   const dataMode: RecommendationBundle['dataMode'] =
-    tmdbResult.liveTmdbUsed && recommendations.every((r) => !r.movie.isDemoData)
+    discoveryResult.liveCatalogUsed && recommendations.every((r) => !r.movie.isDemoData)
       ? 'live-tmdb'
-      : tmdbResult.liveTmdbUsed
+      : discoveryResult.liveCatalogUsed
         ? 'hybrid'
         : 'demo-fallback';
 
-  let notice = tmdbResult.message;
+  let notice = discoveryResult.message;
   if (!notice && dataMode === 'demo-fallback') {
     notice =
       'Showing Denetflix’s curated rare-gem vault (American, Italian & international deep cuts, 1960–1999) with live regional availability and trailer checks.';
@@ -288,7 +317,7 @@ export async function generateRecommendations(
   return {
     personalizedIntro:
       geminiResult?.personalizedIntro ||
-      `Here are all ${recommendations.length} rare, non-mainstream picks that understood the assignment. ${summarizePreferences(preferences)}`,
+      `Unearthed ${recommendations.length} rare 1960–1999 picks matched strictly to your filters. ${summarizePreferences(preferences)}`,
     recommendations,
     dataMode,
     aiEnhanced: Boolean(geminiResult),
@@ -298,7 +327,7 @@ export async function generateRecommendations(
 
 /**
  * Enriches a specific slice of recommendations (e.g. Page 2: indices 10–19) on demand
- * with live Wikipedia posters, JustWatch/TMDB availability, and YouTube trailer verification.
+ * with live posters/extracts, JustWatch/TMDB availability, Amazon ASINs, and YouTube trailer verification.
  */
 export async function enrichRecommendationSlice(
   items: MovieRecommendation[],
@@ -307,22 +336,30 @@ export async function enrichRecommendationSlice(
 ): Promise<MovieRecommendation[]> {
   if (items.length === 0) return items;
   const movies = items.map((item) => item.movie);
-  const [resolvedPosters, availabilityAndTrailers, resolvedAsins] =
+  const [resolvedMedia, availabilityAndTrailers, resolvedAsins] =
     await resolveMediaAndAvailabilityForBatch(movies, countryCode, signal);
 
   return items.map((item, idx) => {
-    const resolvedPoster = resolvedPosters[idx] ?? item.movie.posterUrl;
+    const media = resolvedMedia[idx];
+    const resolvedPoster = media?.posterUrl ?? item.movie.posterUrl;
+    const resolvedExtract = media?.extract;
     const liveData = availabilityAndTrailers[idx];
     const resolvedAsin = resolvedAsins[idx] ?? item.physicalMedia.asin;
     return {
       ...item,
-      movie: resolvedPoster
-        ? {
-            ...item.movie,
-            posterUrl: resolvedPoster,
-            posterSource: item.movie.posterSource === 'tmdb' ? 'tmdb' : 'wikipedia',
-          }
-        : item.movie,
+      movie: {
+        ...item.movie,
+        posterUrl: resolvedPoster,
+        posterSource: resolvedPoster
+          ? item.movie.posterSource === 'tmdb'
+            ? 'tmdb'
+            : 'wikipedia'
+          : item.movie.posterSource,
+        synopsis:
+          resolvedExtract && item.movie.id.startsWith('wd-')
+            ? resolvedExtract
+            : item.movie.synopsis,
+      },
       availability: liveData.availability,
       trailerYoutubeId: liveData.trailerYoutubeId,
       trailerTitle: liveData.trailerTitle,

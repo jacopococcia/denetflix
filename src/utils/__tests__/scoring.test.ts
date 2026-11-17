@@ -7,6 +7,7 @@ import {
   buildAmazonSearchUrl,
   createPhysicalMediaLink,
 } from '../../services/amazonService';
+import {normalizeJustWatchCatalogMovie} from '../../services/catalogDiscoveryService';
 import {normalizeTmdbMovieDetail} from '../../services/tmdbService';
 import type {Movie} from '../../types/movie';
 import type {MoodPreference, MovieGenre, MovieOrigin} from '../../types/quiz';
@@ -386,5 +387,70 @@ describe('Denetflix rare-gem scoring and strict recommendation engine', () => {
     const parsedFallback = new URL(fallbackSearch);
     expect(parsedFallback.hostname).toBe('www.amazon.it');
     expect(parsedFallback.searchParams.get('tag')).toBe('280177-21');
+  });
+
+  it('normalizes JustWatch catalog candidates strictly by year and primary country', () => {
+    const outOfWindow = normalizeJustWatchCatalogMovie({
+      id: 'jw-1',
+      title: 'Modern Horror',
+      year: 2019,
+      runtime: 95,
+      overview: 'Recent film',
+      productionCountries: ['US'],
+      posterUrl: null,
+      genreCodes: ['hrr'],
+      director: 'Jane Doe',
+      imdbVotes: 1200,
+      imdbScore: 6.4,
+    });
+    expect(outOfWindow).toBeNull();
+
+    const frenchPrimaryWithItalyCo = normalizeJustWatchCatalogMovie({
+      id: 'jw-2',
+      title: 'French-Italian Co-Production',
+      year: 1969,
+      runtime: 145,
+      overview: 'Crime suspense classic.',
+      productionCountries: ['FR', 'IT'],
+      posterUrl: 'https://images.justwatch.com/poster/123/s592/sample.jpg',
+      genreCodes: ['war', 'trl'],
+      director: 'Jean-Pierre Melville',
+      imdbVotes: 30000,
+      imdbScore: 8.1,
+    });
+    expect(frenchPrimaryWithItalyCo).not.toBeNull();
+    expect(frenchPrimaryWithItalyCo!.origin).toBe('europe');
+    expect(frenchPrimaryWithItalyCo!.genres).toContain('War');
+    expect(frenchPrimaryWithItalyCo!.genres).toContain('Thriller');
+  });
+
+  it('interleaves multiple selected genres on Page 1 and rotates equivalent picks across shuffleSeeds', () => {
+    const prefs = buildUserPreferences(
+      {
+        ...DEFAULT_QUIZ_ANSWERS,
+        decade: 'surprise',
+        origin: 'any',
+        genres: ['Horror', 'Science fiction', 'Comedy'],
+        mood: 'weird-good',
+      },
+      'US',
+    );
+
+    const runA = rankAndSelectMovies(FALLBACK_MOVIES, prefs, undefined, 101);
+    const runB = rankAndSelectMovies(FALLBACK_MOVIES, prefs, undefined, 9099);
+
+    expect(runA.length).toBeGreaterThan(RESULTS_PER_PAGE);
+    expect(runB.length).toBe(runA.length);
+
+    // Page 1 must surface all selected genres rather than clumping a single genre
+    const page1 = runA.slice(0, RESULTS_PER_PAGE);
+    expect(page1.some((r) => r.movie.genres.includes('Horror'))).toBe(true);
+    expect(page1.some((r) => r.movie.genres.includes('Science fiction'))).toBe(true);
+    expect(page1.some((r) => r.movie.genres.includes('Comedy'))).toBe(true);
+
+    // Different shuffleSeeds should rotate order within relevance tiers
+    const idsA = runA.map((r) => r.movie.id).join(',');
+    const idsB = runB.map((r) => r.movie.id).join(',');
+    expect(idsA).not.toBe(idsB);
   });
 });

@@ -1,4 +1,4 @@
-import {ChevronLeft, ChevronRight, RotateCcw, SlidersHorizontal} from 'lucide-react';
+import {ChevronLeft, ChevronRight, RotateCcw, Shuffle, SlidersHorizontal} from 'lucide-react';
 import {useEffect, useRef, useState} from 'react';
 import {Button} from '../components/Button';
 import {ErrorBanner} from '../components/ErrorBanner';
@@ -14,6 +14,7 @@ interface ResultsPageProps {
   bundle: RecommendationBundle;
   countryCode: string;
   onChangeCountry: (newCountryCode: string) => void;
+  onShuffleLineup?: () => void;
   onModifyAnswers: () => void;
   onStartOver: () => void;
 }
@@ -43,6 +44,7 @@ export function ResultsPage({
   bundle,
   countryCode,
   onChangeCountry,
+  onShuffleLineup,
   onModifyAnswers,
   onStartOver,
 }: ResultsPageProps) {
@@ -158,7 +160,7 @@ export function ResultsPage({
           {bundle.personalizedIntro}
         </p>
 
-        {/* Region / Filter & Sound toggle row */}
+        {/* Region / Filter, Shuffle & Sound toggle row */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -170,6 +172,16 @@ export function ResultsPage({
               <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
               <span>{showFilters ? 'Show fewer filters' : 'Change region'}</span>
             </Button>
+            {onShuffleLineup ? (
+              <Button
+                variant="ghost"
+                onClick={onShuffleLineup}
+                className="px-3 text-xs text-[#FFE600] hover:text-[#FFE600]"
+              >
+                <Shuffle className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Spin fresh picks</span>
+              </Button>
+            ) : null}
             <SoundToggle />
           </div>
 

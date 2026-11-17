@@ -157,6 +157,19 @@ export function scoreMovie(movie: Movie, preferences: UserPreferences): number {
   return score;
 }
 
+function seededHash(value: string, seed: number): number {
+  let h = (seed ^ 0x811c9dc5) >>> 0;
+  for (let i = 0; i < value.length; i += 1) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  // Extra avalanche mixing
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b) >>> 0;
+  h ^= h >>> 13;
+  return h >>> 0;
+}
+
 /**
  * Selects all diverse retro gems (or up to an optional explicit limit) that strictly obey
  * all user preferences (production nation, decade, genres, mood/taste, viewing context, and exclusions).
@@ -166,6 +179,7 @@ export function rankAndSelectMovies(
   candidates: Movie[],
   preferences: UserPreferences,
   limit?: number,
+  shuffleSeed?: number,
 ): ScoredMovie[] {
   const safeLimit =
     typeof limit === 'number' && Number.isFinite(limit)
@@ -191,45 +205,85 @@ export function rankAndSelectMovies(
     }))
     .filter((item) => item.score > -100);
 
+  const hasShuffle = typeof shuffleSeed === 'number' && Number.isFinite(shuffleSeed);
+
   eligible.sort((a, b) => {
+    if (hasShuffle) {
+      // Preserve relevance tiers (15-pt buckets) while rotating equivalent matches with shuffleSeed
+      const tierA = Math.floor(a.score / 15);
+      const tierB = Math.floor(b.score / 15);
+      if (tierB !== tierA) {
+        return tierB - tierA;
+      }
+      const hashA = seededHash(a.movie.id, shuffleSeed);
+      const hashB = seededHash(b.movie.id, shuffleSeed);
+      if (hashA !== hashB) {
+        return hashA - hashB;
+      }
+    }
     if (b.score !== a.score) {
       return b.score - a.score;
     }
     return a.movie.title.localeCompare(b.movie.title);
   });
 
-  const selected: ScoredMovie[] = [];
-  const deferredForVariety: ScoredMovie[] = [];
-  const primaryGenreCounts = new Map<string, number>();
-  const decadeCounts = new Map<string, number>();
+  // Round-robin interleave across selected genres (or primary genres/decades) so Page 1 stays varied
+  const buckets = new Map<string, ScoredMovie[]>();
+  const bucketOrder: string[] = [];
 
-  for (const item of eligible) {
-    const primaryGenre = item.movie.genres[0] || 'Other';
-    const genreCount = primaryGenreCounts.get(primaryGenre) ?? 0;
-    const decadeCount = decadeCounts.get(item.movie.decade) ?? 0;
-
-    const tooManySameGenre = preferences.genres.length !== 1 && genreCount >= 3;
-    const tooManySameDecade = preferences.decade === 'surprise' && decadeCount >= 3;
-
-    if (tooManySameGenre || tooManySameDecade) {
-      deferredForVariety.push(item);
-      continue;
+  if (preferences.genres.length > 1) {
+    for (const g of preferences.genres) {
+      buckets.set(g, []);
+      bucketOrder.push(g);
     }
-
-    selected.push(item);
-    primaryGenreCounts.set(primaryGenre, genreCount + 1);
-    decadeCounts.set(item.movie.decade, decadeCount + 1);
-
-    if (selected.length >= safeLimit) {
-      break;
+    for (const item of eligible) {
+      // Assign to the matched requested genre that currently has the fewest items (balanced spread)
+      const matchingRequested = preferences.genres.filter((g) => item.movie.genres.includes(g));
+      let targetBucket = matchingRequested[0] || item.movie.genres[0] || 'Other';
+      if (matchingRequested.length > 1) {
+        targetBucket = matchingRequested.reduce((minGenre, cand) =>
+          (buckets.get(cand)?.length ?? 0) < (buckets.get(minGenre)?.length ?? 0)
+            ? cand
+            : minGenre,
+        );
+      }
+      if (!buckets.has(targetBucket)) {
+        buckets.set(targetBucket, []);
+        bucketOrder.push(targetBucket);
+      }
+      buckets.get(targetBucket)!.push(item);
+    }
+  } else {
+    for (const item of eligible) {
+      const bucketKey =
+        preferences.decade === 'surprise'
+          ? `${item.movie.genres[0] || 'Other'}::${item.movie.decade}`
+          : item.movie.genres[0] || 'Other';
+      if (!buckets.has(bucketKey)) {
+        buckets.set(bucketKey, []);
+        bucketOrder.push(bucketKey);
+      }
+      buckets.get(bucketKey)!.push(item);
     }
   }
 
-  if (selected.length < safeLimit) {
-    for (const item of deferredForVariety) {
-      selected.push(item);
-      if (selected.length >= safeLimit) {
-        break;
+  const selected: ScoredMovie[] = [];
+  const cursors = new Map<string, number>();
+  let addedInRound = true;
+
+  while (addedInRound && selected.length < safeLimit) {
+    addedInRound = false;
+    for (const key of bucketOrder) {
+      const queue = buckets.get(key);
+      if (!queue) continue;
+      const idx = cursors.get(key) ?? 0;
+      if (idx < queue.length) {
+        selected.push(queue[idx]);
+        cursors.set(key, idx + 1);
+        addedInRound = true;
+        if (selected.length >= safeLimit) {
+          break;
+        }
       }
     }
   }

@@ -39,7 +39,7 @@ export default function App() {
   }, [cancelInFlightRequest]);
 
   const runRecommendationSearch = useCallback(
-    async (quizAnswers: QuizAnswersMap, targetCountry: string) => {
+    async (quizAnswers: QuizAnswersMap, targetCountry: string, shuffleSeed?: number) => {
       cancelInFlightRequest();
       const controller = new AbortController();
       activeRequestRef.current = controller;
@@ -61,6 +61,7 @@ export default function App() {
           quizAnswers,
           targetCountry,
           controller.signal,
+          typeof shuffleSeed === 'number' ? {shuffleSeed} : undefined,
         );
 
         const elapsed = Date.now() - startedAt;
@@ -152,6 +153,11 @@ export default function App() {
     void runRecommendationSearch(answers, newCountry);
   };
 
+  const handleShuffleLineup = () => {
+    const nextSeed = Math.floor(Math.random() * 100000) + 1;
+    void runRecommendationSearch(answers, countryCode, nextSeed);
+  };
+
   return (
     <div className="film-grain flex min-h-screen flex-col bg-[#0B0D14] text-[#F6F4EE]">
       <Header
@@ -201,6 +207,7 @@ export default function App() {
             bundle={bundle}
             countryCode={countryCode}
             onChangeCountry={handleCountryChangeFromResults}
+            onShuffleLineup={handleShuffleLineup}
             onModifyAnswers={handleModifyAnswers}
             onStartOver={handleStartQuiz}
           />

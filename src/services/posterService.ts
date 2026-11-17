@@ -57,6 +57,51 @@ async function fetchSingleWikiPoster(
   }
 }
 
+const summaryCache = new Map<string, {posterUrl: string | null; extract: string | null}>();
+
+export async function resolveWikipediaSummary(
+  wikiSlug: string | undefined,
+  callerSignal?: AbortSignal,
+): Promise<{posterUrl: string | null; extract: string | null}> {
+  if (!wikiSlug) return {posterUrl: null, extract: null};
+  if (summaryCache.has(wikiSlug)) {
+    return summaryCache.get(wikiSlug)!;
+  }
+
+  const wikiTimeout = createTimeoutSignal(callerSignal, 3500);
+  try {
+    const res = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wikiSlug)}`,
+      {signal: wikiTimeout.signal},
+    );
+    if (!res.ok) {
+      const empty = {posterUrl: null, extract: null};
+      summaryCache.set(wikiSlug, empty);
+      return empty;
+    }
+    const json = (await res.json()) as {
+      thumbnail?: {source?: string};
+      extract?: string;
+    };
+    const result = {
+      posterUrl: json.thumbnail?.source ?? null,
+      extract: json.extract?.trim() || null,
+    };
+    summaryCache.set(wikiSlug, result);
+    if (result.posterUrl) {
+      posterCache.set(wikiSlug, result.posterUrl);
+    }
+    return result;
+  } catch (error) {
+    if ((error as Error)?.name === 'AbortError' && callerSignal?.aborted) {
+      throw error;
+    }
+    return {posterUrl: null, extract: null};
+  } finally {
+    wikiTimeout.cleanup();
+  }
+}
+
 export async function resolveFallbackPoster(
   wikiSlug: string | undefined,
   callerSignal?: AbortSignal,

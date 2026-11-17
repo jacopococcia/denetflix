@@ -186,7 +186,7 @@ function inferOriginFromDetail(detail: TmdbMovieDetail): {
   };
 }
 
-function inferTraitsFromGenres(
+export function inferTraitsFromGenres(
   genres: MovieGenre[],
   runtimeMinutes: number | null,
   voteCount: number,
@@ -200,15 +200,23 @@ function inferTraitsFromGenres(
   const popularityTier: PopularityPreference =
     originalLanguage && originalLanguage !== 'en'
       ? 'rare-international'
-      : voteCount <= 700
+      : voteCount <= 4500
         ? 'forgotten-midnight'
         : 'cult-favorites';
 
   const moods = new Set<MoodPreference>();
-  if (genres.includes('Comedy') || genres.includes('Musical') || genres.includes('Family')) {
+  const isPureHorror =
+    genres.includes('Horror') && !genres.includes('Comedy') && !genres.includes('Musical');
+
+  if (
+    genres.includes('Comedy') ||
+    genres.includes('Musical') ||
+    genres.includes('Family')
+  ) {
     moods.add('fun-light');
     moods.add('feel-good');
     moods.add('nostalgic');
+    moods.add('weird-good');
   }
   if (genres.includes('Romance')) {
     moods.add('feel-good');
@@ -217,9 +225,18 @@ function inferTraitsFromGenres(
       moods.add('fun-light');
     }
   }
-  if (genres.includes('Action') || genres.includes('Adventure') || genres.includes('Thriller')) {
+  if (genres.includes('Adventure')) {
     moods.add('exciting');
+    moods.add('fun-light');
+    moods.add('nostalgic');
     moods.add('unforgettable');
+    moods.add('feel-good');
+  }
+  if (genres.includes('Action') || genres.includes('Thriller')) {
+    moods.add('exciting');
+    moods.add('nostalgic');
+    moods.add('unforgettable');
+    moods.add('dark-entertaining');
   }
   if (genres.includes('War')) {
     moods.add('exciting');
@@ -227,14 +244,28 @@ function inferTraitsFromGenres(
     moods.add('unforgettable');
     moods.add('nostalgic');
   }
-  if (genres.includes('Horror') || genres.includes('Crime') || genres.includes('Mystery')) {
+  if (genres.includes('Horror')) {
     moods.add('dark-entertaining');
+    moods.add('weird-good');
     moods.add('unforgettable');
+    moods.add('nostalgic');
+    moods.add('exciting');
+  }
+  if (genres.includes('Crime') || genres.includes('Mystery')) {
+    moods.add('dark-entertaining');
+    moods.add('exciting');
+    moods.add('unforgettable');
+    moods.add('nostalgic');
   }
   if (genres.includes('Fantasy') || genres.includes('Science fiction')) {
     moods.add('weird-good');
     moods.add('nostalgic');
     moods.add('unforgettable');
+    moods.add('exciting');
+    if (!isPureHorror) {
+      moods.add('fun-light');
+      moods.add('feel-good');
+    }
   }
   if (moods.size === 0) {
     moods.add('unforgettable');
@@ -242,7 +273,7 @@ function inferTraitsFromGenres(
   }
 
   const contexts = new Set<ViewingContext>(['alone', 'friends']);
-  if (genres.includes('Family') && !genres.includes('Horror')) {
+  if ((genres.includes('Family') || genres.includes('Adventure') || genres.includes('Fantasy')) && !genres.includes('Horror')) {
     contexts.add('family');
   }
   if ((genres.includes('Romance') || genres.includes('Comedy') || genres.includes('Musical')) && !genres.includes('Horror')) {
@@ -253,15 +284,22 @@ function inferTraitsFromGenres(
     genres.includes('Action') ||
     genres.includes('Thriller') ||
     genres.includes('Crime') ||
-    genres.includes('War')
+    genres.includes('War') ||
+    genres.includes('Science fiction')
   ) {
     contexts.add('late-night');
   }
 
   const attentionLevels: AttentionPreference[] = ['easy-watch'];
-  if (runtimeMinutes !== null && runtimeMinutes <= 102) attentionLevels.push('short-entertaining');
-  if (runtimeMinutes !== null && runtimeMinutes >= 120) attentionLevels.push('longer-movie');
-  if (genres.includes('Mystery') || genres.includes('Crime') || genres.includes('Thriller')) {
+  if (runtimeMinutes !== null && runtimeMinutes <= 104) attentionLevels.push('short-entertaining');
+  if (runtimeMinutes !== null && runtimeMinutes >= 115) attentionLevels.push('longer-movie');
+  if (
+    genres.includes('Mystery') ||
+    genres.includes('Crime') ||
+    genres.includes('Thriller') ||
+    genres.includes('Science fiction') ||
+    genres.includes('War')
+  ) {
     attentionLevels.push('clever');
   }
 
