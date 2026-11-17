@@ -27,11 +27,11 @@ export function LegalModal({topic, onClose}: LegalModalProps) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="legal-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+      className="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[85vh] w-full max-w-xl flex-col rounded-2xl border border-white/12 bg-[#141724] p-6 text-[#F6F4EE] shadow-2xl"
+        className="animate-modal-pop flex max-h-[85vh] w-full max-w-xl flex-col rounded-2xl border border-white/12 bg-[#141724] p-6 text-[#F6F4EE] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">

@@ -2,6 +2,7 @@ import {AlertCircle, Check, Disc3, ExternalLink, Play} from 'lucide-react';
 import {useState} from 'react';
 import type {MovieRecommendation} from '../types/movie';
 import {formatRuntime} from '../utils/formatters';
+import {playPageFlip} from '../utils/soundEffects';
 import {AvailabilityBadge} from './AvailabilityBadge';
 import {MoviePoster} from './MoviePoster';
 import {TrailerModal} from './TrailerModal';
@@ -9,9 +10,10 @@ import {TrailerModal} from './TrailerModal';
 interface MovieCardProps {
   recommendation: MovieRecommendation;
   rank: number;
+  animationIndex?: number;
 }
 
-export function MovieCard({recommendation, rank}: MovieCardProps) {
+export function MovieCard({recommendation, rank, animationIndex = 0}: MovieCardProps) {
   const {
     movie,
     pros,
@@ -27,7 +29,10 @@ export function MovieCard({recommendation, rank}: MovieCardProps) {
 
   return (
     <>
-      <article className="rounded-2xl border border-white/10 bg-[#141724] p-5 sm:p-6">
+      <article
+        style={{animationDelay: `${Math.min(animationIndex, 9) * 35}ms`}}
+        className="group animate-card-enter rounded-2xl border border-white/10 bg-[#141724] p-5 sm:p-6 transition-colors duration-200 hover:border-white/20"
+      >
         <div className="grid gap-6 md:grid-cols-[180px_1fr] lg:grid-cols-[200px_1fr]">
           {/* Poster column */}
           <div className="mx-auto w-44 sm:w-48 md:mx-0 md:w-full shrink-0">
@@ -39,7 +44,7 @@ export function MovieCard({recommendation, rank}: MovieCardProps) {
             {/* Header block — clean unboxed metadata with typographic separators */}
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs font-semibold text-[#FF4D4D] tabular-nums">
-                <span>Pick 0{rank}</span>
+                <span>Pick {String(rank).padStart(2, '0')}</span>
                 <span aria-hidden="true" className="text-[#A8B1C7]">·</span>
                 <span className="text-[#00D4FF]">{movie.decade}</span>
                 {movie.isDemoData ? (
@@ -121,8 +126,11 @@ export function MovieCard({recommendation, rank}: MovieCardProps) {
               <div className="flex flex-wrap items-center">
                 <button
                   type="button"
-                  onClick={() => setIsTrailerOpen(true)}
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border-2 border-[#0B0D14] bg-[#FFE600] px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-[#0B0D14] shadow-[3px_3px_0_0_#E80000] transition-transform hover:-translate-y-0.5 hover:bg-[#fff04d] active:translate-y-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFE600]"
+                  onClick={() => {
+                    playPageFlip();
+                    setIsTrailerOpen(true);
+                  }}
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border-2 border-[#0B0D14] bg-[#FFE600] px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-[#0B0D14] shadow-[3px_3px_0_0_#E80000] transition-transform duration-150 hover:-translate-y-0.5 hover:bg-[#fff04d] active:translate-y-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFE600]"
                 >
                   <Play className="h-4 w-4 fill-current" aria-hidden="true" />
                   <span>Trailer</span>

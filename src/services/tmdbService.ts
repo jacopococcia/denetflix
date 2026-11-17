@@ -499,10 +499,30 @@ export async function fetchMoviesFromTmdb(
       };
     }
 
-    const discoverJson = (await discoverRes.json()) as {results?: TmdbDiscoverMovie[]};
-    let candidates = (discoverJson.results || []).slice(0, 14);
+    const discoverJson = (await discoverRes.json()) as {
+      results?: TmdbDiscoverMovie[];
+      total_pages?: number;
+    };
+    const candidates = (discoverJson.results || []).slice(0, 20);
 
-    if (candidates.length < 7) {
+    if (candidates.length < 15 && (discoverJson.total_pages ?? 1) > 1) {
+      const page2Url = new URL(buildDiscoverUrl(false));
+      page2Url.searchParams.set('page', '2');
+      const page2Res = await fetch(page2Url.toString(), {signal: clientTimeout.signal});
+      if (page2Res.ok) {
+        const page2Json = (await page2Res.json()) as {results?: TmdbDiscoverMovie[]};
+        const seenIds = new Set(candidates.map((c) => c.id));
+        for (const extra of page2Json.results || []) {
+          if (!seenIds.has(extra.id)) {
+            seenIds.add(extra.id);
+            candidates.push(extra);
+          }
+          if (candidates.length >= 24) break;
+        }
+      }
+    }
+
+    if (candidates.length < 10) {
       const relaxedRes = await fetch(buildDiscoverUrl(true), {signal: clientTimeout.signal});
       if (relaxedRes.ok) {
         const relaxedJson = (await relaxedRes.json()) as {results?: TmdbDiscoverMovie[]};
@@ -512,7 +532,7 @@ export async function fetchMoviesFromTmdb(
             seenIds.add(extra.id);
             candidates.push(extra);
           }
-          if (candidates.length >= 14) break;
+          if (candidates.length >= 24) break;
         }
       }
     }

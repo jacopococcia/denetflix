@@ -1,7 +1,7 @@
 import type {Movie} from '../types/movie';
 import type {QuizAnswersMap, UserPreferences} from '../types/quiz';
 
-export const MAX_RECOMMENDATIONS = 7;
+export const RESULTS_PER_PAGE = 10;
 export const MIN_RETRO_YEAR = 1960;
 export const MAX_RETRO_YEAR = 1999;
 
@@ -158,16 +158,19 @@ export function scoreMovie(movie: Movie, preferences: UserPreferences): number {
 }
 
 /**
- * Selects up to 7 diverse retro gems that strictly obey all user preferences
- * (production nation, decade, genres, mood/taste, viewing context, and exclusions).
+ * Selects all diverse retro gems (or up to an optional explicit limit) that strictly obey
+ * all user preferences (production nation, decade, genres, mood/taste, viewing context, and exclusions).
  * Never pads results with off-country, off-genre, or conflicting films.
  */
 export function rankAndSelectMovies(
   candidates: Movie[],
   preferences: UserPreferences,
-  limit: number = MAX_RECOMMENDATIONS,
+  limit?: number,
 ): ScoredMovie[] {
-  const safeLimit = Math.max(1, Math.min(MAX_RECOMMENDATIONS, limit));
+  const safeLimit =
+    typeof limit === 'number' && Number.isFinite(limit)
+      ? Math.max(1, Math.floor(limit))
+      : Number.POSITIVE_INFINITY;
 
   // Filter strictly to 1960–1999 and deduplicate by title+year
   const uniqueMap = new Map<string, Movie>();
@@ -231,7 +234,7 @@ export function rankAndSelectMovies(
     }
   }
 
-  return selected.slice(0, safeLimit);
+  return Number.isFinite(safeLimit) ? selected.slice(0, safeLimit) : selected;
 }
 
 export const VALID_MOVIE_GENRES: ReadonlySet<string> = new Set([

@@ -8,18 +8,29 @@ import type {MoodPreference, MovieGenre, MovieOrigin} from '../../types/quiz';
 import {
   buildUserPreferences,
   diagnoseEmptyMatches,
-  MAX_RECOMMENDATIONS,
   rankAndSelectMovies,
+  RESULTS_PER_PAGE,
   scoreMovie,
   VALID_MOVIE_GENRES,
 } from '../scoring';
 
 describe('Denetflix rare-gem scoring and strict recommendation engine', () => {
-  it('never returns more than 7 movies', () => {
-    const prefs = buildUserPreferences(DEFAULT_QUIZ_ANSWERS, 'US');
-    const results = rankAndSelectMovies(FALLBACK_MOVIES, prefs, 10);
-    expect(results.length).toBeLessThanOrEqual(MAX_RECOMMENDATIONS);
-    expect(results.length).toBeGreaterThan(0);
+  it('returns all matching rare gems without a 7-film cap and paginates by 10 per page', () => {
+    expect(RESULTS_PER_PAGE).toBe(10);
+    const prefs = buildUserPreferences(
+      {
+        ...DEFAULT_QUIZ_ANSWERS,
+        decade: 'surprise',
+        origin: 'any',
+        genres: [],
+        mood: 'dark-entertaining',
+      },
+      'US',
+    );
+    const results = rankAndSelectMovies(FALLBACK_MOVIES, prefs);
+    const expectedMatches = FALLBACK_MOVIES.filter((m) => m.moods.includes('dark-entertaining'));
+    expect(results.length).toBe(expectedMatches.length);
+    expect(results.length).toBeGreaterThan(RESULTS_PER_PAGE);
   });
 
   it('validates every movie in FALLBACK_MOVIES (genres, moods, decade window, unique IDs)', () => {

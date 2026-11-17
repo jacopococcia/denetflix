@@ -12,6 +12,7 @@ import {generateRecommendations} from './services/recommendationService';
 import type {RecommendationBundle} from './types/movie';
 import type {QuizAnswersMap} from './types/quiz';
 import {getDefaultCountryCode} from './utils/formatters';
+import {playReelSpin, playResultsReady} from './utils/soundEffects';
 
 type ActiveView = 'home' | 'quiz' | 'loading' | 'results';
 
@@ -44,6 +45,7 @@ export default function App() {
       activeRequestRef.current = controller;
 
       setErrorMessage(null);
+      playReelSpin();
       setActiveView('loading');
 
       const startedAt = Date.now();
@@ -79,6 +81,7 @@ export default function App() {
         if (controller.signal.aborted) return;
 
         setBundle(result);
+        playResultsReady(result.recommendations.length > 0);
         setActiveView('results');
         window.scrollTo({top: 0, behavior: 'smooth'});
       } catch (error) {

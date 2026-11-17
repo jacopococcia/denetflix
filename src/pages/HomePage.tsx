@@ -15,7 +15,7 @@ export function HomePage({countryCode, onChangeCountry, onStartQuiz}: HomePagePr
   const [heroImgFailed, setHeroImgFailed] = useState(false);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-16 px-4 py-8 sm:px-6 sm:py-12">
+    <div className="animate-view-enter mx-auto max-w-6xl space-y-16 px-4 py-8 sm:px-6 sm:py-12">
       {/* Hero Split */}
       <section className="grid gap-8 lg:grid-cols-12 lg:items-stretch">
         <div className="flex flex-col justify-between space-y-6 lg:col-span-6 lg:py-2">
@@ -32,7 +32,7 @@ export function HomePage({countryCode, onChangeCountry, onStartQuiz}: HomePagePr
             </h1>
 
             <p className="max-w-xl text-base leading-relaxed text-[#A8B1C7] sm:text-lg">
-              Mainstream feeds serve plastic clones. Answer 8 quick pop-quiz questions to unearth up to 7 hard-to-find American, Italian, and international cult, midnight, and gloriously trashy genre films.
+              Mainstream feeds serve plastic clones. Answer 8 quick pop-quiz questions to unearth all matching hard-to-find American, Italian, and international cult, midnight, and gloriously trashy genre films, paginated 10 at a time.
             </p>
           </div>
 
@@ -106,7 +106,7 @@ export function HomePage({countryCode, onChangeCountry, onStartQuiz}: HomePagePr
         </div>
 
         <div className="grid gap-6 md:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-[#141724] p-6 space-y-2.5">
+          <div className="rounded-2xl border border-white/10 bg-[#141724] p-6 space-y-2.5 transition-transform duration-200 ease-out hover:-translate-y-1">
             <p className="font-display text-sm font-bold text-[#FF1E8A] tabular-nums">01. Answer the quiz</p>
             <h3 className="font-display text-lg font-bold text-[#F6F4EE]">Pick your decade & mood</h3>
             <p className="text-sm leading-relaxed text-[#A8B1C7]">
@@ -114,15 +114,15 @@ export function HomePage({countryCode, onChangeCountry, onStartQuiz}: HomePagePr
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-[#141724] p-6 space-y-2.5">
+          <div className="rounded-2xl border border-white/10 bg-[#141724] p-6 space-y-2.5 transition-transform duration-200 ease-out hover:-translate-y-1">
             <p className="font-display text-sm font-bold text-[#00E5FF] tabular-nums">02. Dig up rare picks</p>
-            <h3 className="font-display text-lg font-bold text-[#F6F4EE]">Up to 7 hidden treasures</h3>
+            <h3 className="font-display text-lg font-bold text-[#F6F4EE]">Every hidden treasure matched</h3>
             <p className="text-sm leading-relaxed text-[#A8B1C7]">
-              We skip sanitized algorithmic top-10 lists and spotlight rare American, Italian, and international genre gems—even the glorious cult trash.
+              We skip sanitized algorithmic top-10 lists and return every matching American, Italian, and international genre gem—paginated cleanly 10 per page.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-[#141724] p-6 space-y-2.5">
+          <div className="rounded-2xl border border-white/10 bg-[#141724] p-6 space-y-2.5 transition-transform duration-200 ease-out hover:-translate-y-1">
             <p className="font-display text-sm font-bold text-[#B8FF00] tabular-nums">03. Watch or own the latest disc</p>
             <h3 className="font-display text-lg font-bold text-[#F6F4EE]">Stream or grab the newest edition</h3>
             <p className="text-sm leading-relaxed text-[#A8B1C7]">

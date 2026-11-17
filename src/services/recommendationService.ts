@@ -10,8 +10,8 @@ import {summarizePreferences} from '../utils/formatters';
 import {
   buildUserPreferences,
   diagnoseEmptyMatches,
-  MAX_RECOMMENDATIONS,
   rankAndSelectMovies,
+  RESULTS_PER_PAGE,
 } from '../utils/scoring';
 import {createPhysicalMediaLink} from './amazonService';
 import {resolveFallbackPoster} from './posterService';
@@ -82,7 +82,7 @@ async function requestGeminiEnhancement(
     })),
   };
 
-  const timeout = createTimeoutSignal(callerSignal, 4000);
+  const timeout = createTimeoutSignal(callerSignal, 4500);
   try {
     const response = await fetch(`${apiBase}/api/gemini/recommend`, {
       method: 'POST',
@@ -110,10 +110,53 @@ async function requestGeminiEnhancement(
   }
 }
 
+async function resolvePosterAndAvailabilityForBatch(
+  movies: Movie[],
+  countryCode: string,
+  signal?: AbortSignal,
+) {
+  return Promise.all([
+    Promise.all(
+      movies.map(async (movie) => {
+        if (movie.posterUrl) return movie.posterUrl;
+        try {
+          return await resolveFallbackPoster(movie.wikiSlug, signal);
+        } catch (error) {
+          if ((error as Error)?.name === 'AbortError' && signal?.aborted) throw error;
+          return null;
+        }
+      }),
+    ),
+    Promise.all(
+      movies.map(async (movie) => {
+        try {
+          return await fetchAvailabilityAndTrailer(
+            {
+              title: movie.title,
+              year: movie.year,
+              tmdbId: movie.tmdbId,
+              countryCode,
+            },
+            signal,
+          );
+        } catch (error) {
+          if ((error as Error)?.name === 'AbortError' && signal?.aborted) throw error;
+          return {
+            availability: buildUnverifiedAvailability(countryCode),
+            trailerYoutubeId: null,
+            trailerTitle: null,
+          };
+        }
+      }),
+    ),
+  ]);
+}
+
 /**
- * Generates up to 7 personalized rare/cult retro movie recommendations, resolving
- * posters (TMDB or Wikipedia REST API fallback), live JustWatch streaming availability
- * & verified YouTube trailers, newest Amazon US physical edition links, and optional Gemini notes.
+ * Generates ALL matching rare/cult retro movie recommendations (no arbitrary 7-film cap),
+ * eagerly resolving posters, live JustWatch/TMDB availability, verified YouTube trailers,
+ * and optional Gemini notes for Page 1 (first 10 picks), while preparing remaining pages
+ * for instant on-demand enrichment as the user pages through 10 results at a time.
  */
 export async function generateRecommendations(
   answers: QuizAnswersMap,
@@ -146,11 +189,7 @@ export async function generateRecommendations(
   }
 
   const allCandidates = Array.from(mergedByKey.values());
-  const ranked = rankAndSelectMovies(
-    allCandidates,
-    preferences,
-    MAX_RECOMMENDATIONS,
-  );
+  const ranked = rankAndSelectMovies(allCandidates, preferences);
 
   const selectedMovies = ranked.map((r) => r.movie);
 
@@ -166,42 +205,12 @@ export async function generateRecommendations(
     };
   }
 
-  // Resolve posters, live JustWatch availability + trailers, and optional AI notes in parallel
-  const [resolvedPosters, availabilityAndTrailers, geminiResult] = await Promise.all([
-    Promise.all(
-      selectedMovies.map(async (movie) => {
-        if (movie.posterUrl) return movie.posterUrl;
-        try {
-          return await resolveFallbackPoster(movie.wikiSlug, signal);
-        } catch (error) {
-          if ((error as Error)?.name === 'AbortError' && signal?.aborted) throw error;
-          return null;
-        }
-      }),
-    ),
-    Promise.all(
-      selectedMovies.map(async (movie) => {
-        try {
-          return await fetchAvailabilityAndTrailer(
-            {
-              title: movie.title,
-              year: movie.year,
-              tmdbId: movie.tmdbId,
-              countryCode: preferences.countryCode,
-            },
-            signal,
-          );
-        } catch (error) {
-          if ((error as Error)?.name === 'AbortError' && signal?.aborted) throw error;
-          return {
-            availability: buildUnverifiedAvailability(preferences.countryCode),
-            trailerYoutubeId: null,
-            trailerTitle: null,
-          };
-        }
-      }),
-    ),
-    requestGeminiEnhancement(preferences, selectedMovies, signal),
+  // Eagerly enrich Page 1 (up to 10 picks) + optional Gemini personalized copy
+  const firstPageMovies = selectedMovies.slice(0, RESULTS_PER_PAGE);
+
+  const [[resolvedPosters, availabilityAndTrailers], geminiResult] = await Promise.all([
+    resolvePosterAndAvailabilityForBatch(firstPageMovies, preferences.countryCode, signal),
+    requestGeminiEnhancement(preferences, firstPageMovies, signal),
   ]);
 
   const geminiMap = new Map(
@@ -209,7 +218,8 @@ export async function generateRecommendations(
   );
 
   const recommendations: MovieRecommendation[] = ranked.map((item, idx) => {
-    const resolvedPoster = resolvedPosters[idx];
+    const isPageOne = idx < firstPageMovies.length;
+    const resolvedPoster = isPageOne ? resolvedPosters[idx] : item.movie.posterUrl;
     const enrichedMovie: Movie = resolvedPoster
       ? {
           ...item.movie,
@@ -219,7 +229,17 @@ export async function generateRecommendations(
       : item.movie;
 
     const aiCopy = geminiMap.get(item.movie.id);
-    const liveData = availabilityAndTrailers[idx];
+    const liveData = isPageOne
+      ? availabilityAndTrailers[idx]
+      : {
+          availability: buildUnverifiedAvailability(
+            preferences.countryCode,
+            'Checking regional streaming availability...',
+          ),
+          trailerYoutubeId: null,
+          trailerTitle: null,
+        };
+
     return {
       movie: enrichedMovie,
       relevanceScore: item.score,
@@ -254,10 +274,46 @@ export async function generateRecommendations(
   return {
     personalizedIntro:
       geminiResult?.personalizedIntro ||
-      `Here are ${recommendations.length} rare, non-mainstream picks that understood the assignment. ${summarizePreferences(preferences)}`,
+      `Here are all ${recommendations.length} rare, non-mainstream picks that understood the assignment. ${summarizePreferences(preferences)}`,
     recommendations,
     dataMode,
     aiEnhanced: Boolean(geminiResult),
     notice,
   };
+}
+
+/**
+ * Enriches a specific slice of recommendations (e.g. Page 2: indices 10–19) on demand
+ * with live Wikipedia posters, JustWatch/TMDB availability, and YouTube trailer verification.
+ */
+export async function enrichRecommendationSlice(
+  items: MovieRecommendation[],
+  countryCode: string,
+  signal?: AbortSignal,
+): Promise<MovieRecommendation[]> {
+  if (items.length === 0) return items;
+  const movies = items.map((item) => item.movie);
+  const [resolvedPosters, availabilityAndTrailers] = await resolvePosterAndAvailabilityForBatch(
+    movies,
+    countryCode,
+    signal,
+  );
+
+  return items.map((item, idx) => {
+    const resolvedPoster = resolvedPosters[idx] ?? item.movie.posterUrl;
+    const liveData = availabilityAndTrailers[idx];
+    return {
+      ...item,
+      movie: resolvedPoster
+        ? {
+            ...item.movie,
+            posterUrl: resolvedPoster,
+            posterSource: item.movie.posterSource === 'tmdb' ? 'tmdb' : 'wikipedia',
+          }
+        : item.movie,
+      availability: liveData.availability,
+      trailerYoutubeId: liveData.trailerYoutubeId,
+      trailerTitle: liveData.trailerTitle,
+    };
+  });
 }

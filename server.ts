@@ -671,10 +671,33 @@ async function startServer() {
         });
       }
 
-      const discoverJson = (await discoverRes.json()) as {results?: Array<{id: number}>};
-      const candidates = (discoverJson.results || []).slice(0, 14);
+      const discoverJson = (await discoverRes.json()) as {
+        results?: Array<{id: number}>;
+        total_pages?: number;
+      };
+      const candidates = (discoverJson.results || []).slice(0, 20);
 
-      if (candidates.length < 7) {
+      if (candidates.length < 15 && (discoverJson.total_pages ?? 1) > 1) {
+        const page2Params = buildDiscoverParams(false);
+        page2Params.set('page', '2');
+        const page2Res = await fetch(
+          `https://api.themoviedb.org/3/discover/movie?${page2Params.toString()}`,
+          {signal: AbortSignal.timeout(5000)},
+        );
+        if (page2Res.ok) {
+          const page2Json = (await page2Res.json()) as {results?: Array<{id: number}>};
+          const seenIds = new Set(candidates.map((c) => c.id));
+          for (const extra of page2Json.results || []) {
+            if (!seenIds.has(extra.id)) {
+              seenIds.add(extra.id);
+              candidates.push(extra);
+            }
+            if (candidates.length >= 24) break;
+          }
+        }
+      }
+
+      if (candidates.length < 10) {
         const relaxedRes = await fetch(
           `https://api.themoviedb.org/3/discover/movie?${buildDiscoverParams(true).toString()}`,
           {signal: AbortSignal.timeout(5000)},
@@ -687,7 +710,7 @@ async function startServer() {
               seenIds.add(extra.id);
               candidates.push(extra);
             }
-            if (candidates.length >= 14) break;
+            if (candidates.length >= 24) break;
           }
         }
       }
@@ -942,7 +965,7 @@ async function startServer() {
         return res.status(400).json({error: 'Valid preferences and verified movies are required.'});
       }
 
-      const cappedMovies = movies.slice(0, 7);
+      const cappedMovies = movies.slice(0, 10);
 
       const response = await withTimeout(
         ai.models.generateContent({

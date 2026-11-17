@@ -38,11 +38,11 @@ export function TrailerModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="trailer-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+      className="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-3xl overflow-hidden rounded-2xl border-2 border-[#0B0D14] bg-[#141724] text-[#F6F4EE] shadow-[0_24px_60px_rgba(0,0,0,0.75)] ring-1 ring-white/15"
+        className="animate-modal-pop w-full max-w-3xl overflow-hidden rounded-2xl border-2 border-[#0B0D14] bg-[#141724] text-[#F6F4EE] shadow-[0_24px_60px_rgba(0,0,0,0.75)] ring-1 ring-white/15"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-3.5">

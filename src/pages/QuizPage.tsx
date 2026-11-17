@@ -1,8 +1,10 @@
 import {ArrowLeft, ArrowRight, RotateCcw, Sparkles} from 'lucide-react';
+import {useState} from 'react';
 import {Button} from '../components/Button';
 import {PopIcon} from '../components/PopIcon';
 import {ProgressBar} from '../components/ProgressBar';
 import {QuizOption} from '../components/QuizOption';
+import {SoundToggle} from '../components/SoundToggle';
 import {QUIZ_QUESTIONS} from '../data/quizQuestions';
 import type {
   AttentionPreference,
@@ -15,6 +17,7 @@ import type {
   QuizAnswersMap,
   ViewingContext,
 } from '../types/quiz';
+import {playPopSelect, playStepTransition} from '../utils/soundEffects';
 
 interface QuizPageProps {
   currentStepIndex: number;
@@ -33,6 +36,7 @@ export function QuizPage({
   onRestart,
   onSubmit,
 }: QuizPageProps) {
+  const [slideDirection, setSlideDirection] = useState<'next' | 'back'>('next');
   const question = QUIZ_QUESTIONS[currentStepIndex];
   const totalSteps = QUIZ_QUESTIONS.length;
   const isFirstStep = currentStepIndex === 0;
@@ -60,13 +64,16 @@ export function QuizPage({
   };
 
   const handleSelectOption = (value: string) => {
+    const currentlySelected = isOptionSelected(value);
     switch (question.id) {
       case 'decade':
+        playPopSelect(true);
         onUpdateAnswers({...answers, decade: value as DecadePreference});
         break;
       case 'genres': {
         const genre = value as MovieGenre;
         const exists = answers.genres.includes(genre);
+        playPopSelect(!exists);
         if (exists) {
           onUpdateAnswers({...answers, genres: answers.genres.filter((g) => g !== genre)});
         } else {
@@ -77,28 +84,35 @@ export function QuizPage({
         break;
       }
       case 'origin':
+        playPopSelect(true);
         onUpdateAnswers({...answers, origin: value as MovieOrigin});
         break;
       case 'mood':
+        playPopSelect(true);
         onUpdateAnswers({...answers, mood: value as MoodPreference});
         break;
       case 'attention':
+        playPopSelect(true);
         onUpdateAnswers({...answers, attention: value as AttentionPreference});
         break;
       case 'popularity':
+        playPopSelect(true);
         onUpdateAnswers({...answers, popularity: value as PopularityPreference});
         break;
       case 'context':
+        playPopSelect(true);
         onUpdateAnswers({...answers, context: value as ViewingContext});
         break;
       case 'exclusions': {
         const exclusion = value as ExclusionPreference;
         if (exclusion === 'no-preference') {
+          playPopSelect(!currentlySelected);
           onUpdateAnswers({...answers, exclusions: ['no-preference']});
           break;
         }
         const withoutNone = answers.exclusions.filter((ex) => ex !== 'no-preference');
         const exists = withoutNone.includes(exclusion);
+        playPopSelect(!exists);
         const next = exists
           ? withoutNone.filter((ex) => ex !== exclusion)
           : [...withoutNone, exclusion];
@@ -111,85 +125,111 @@ export function QuizPage({
     }
   };
 
+  const goToStep = (nextIndex: number, direction: 'next' | 'back') => {
+    setSlideDirection(direction);
+    playStepTransition(direction);
+    onStepChange(nextIndex);
+  };
+
   const handleSurpriseGenres = () => {
     onUpdateAnswers({...answers, genres: []});
-    onStepChange(currentStepIndex + 1);
+    goToStep(currentStepIndex + 1, 'next');
   };
 
   const handleNext = () => {
     if (isLastStep) {
       onSubmit();
     } else {
-      onStepChange(currentStepIndex + 1);
+      goToStep(currentStepIndex + 1, 'next');
+    }
+  };
+
+  const handleBack = () => {
+    if (!isFirstStep) {
+      goToStep(currentStepIndex - 1, 'back');
     }
   };
 
   const isMultiColumn = question.options.length > 6;
 
   return (
-    <section className="mx-auto max-w-3xl px-4 py-6 pb-28 sm:px-6 sm:py-10 sm:pb-12">
+    <section className="animate-view-enter mx-auto max-w-3xl px-4 py-6 pb-28 sm:px-6 sm:py-10 sm:pb-12">
       <div className="space-y-6">
-        {/* Progress & Restart row */}
+        {/* Progress & Utility row */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex-1">
             <ProgressBar currentStep={currentStepIndex + 1} totalSteps={totalSteps} />
           </div>
-          <button
-            type="button"
-            onClick={onRestart}
-            className="inline-flex min-h-[40px] items-center gap-1.5 self-start text-xs font-medium text-[#A8B1C7] hover:text-[#F6F4EE] cursor-pointer sm:self-end"
-          >
-            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Restart quiz</span>
-          </button>
-        </div>
-
-        {/* Question Header with Warhol/Lichtenstein Pop Icon */}
-        <div className="flex items-start gap-4 pt-2">
-          <PopIcon
-            name={question.icon}
-            accent={question.accentColor || 'crimson-pop'}
-            size="lg"
-          />
-          <div className="space-y-1.5">
-            <h1 className="font-display text-2xl font-extrabold leading-tight text-[#F6F4EE] sm:text-3xl">
-              {question.prompt}
-            </h1>
-            <p className="text-sm text-[#A8B1C7] sm:text-base">{question.helperText}</p>
-            {question.id === 'genres' ? (
-              <p className="text-xs font-semibold text-[#00E5FF] tabular-nums">
-                Selected: {answers.genres.length} / {question.maxSelections ?? 3}
-                {answers.genres.length === 0 ? ' (any genre works)' : ''}
-              </p>
-            ) : null}
+          <div className="flex items-center gap-2 self-start sm:self-end">
+            <SoundToggle />
+            <button
+              type="button"
+              onClick={() => {
+                playStepTransition('back');
+                onRestart();
+              }}
+              className="inline-flex min-h-[44px] items-center gap-1.5 px-2 text-xs font-medium text-[#A8B1C7] hover:text-[#F6F4EE] cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Restart quiz</span>
+            </button>
           </div>
         </div>
 
-        {/* Answer Options */}
+        {/* Directional slide container keyed by step index */}
         <div
-          role={question.selectionMode === 'single' ? 'radiogroup' : 'group'}
-          aria-label={question.prompt}
-          className={`grid gap-3 ${isMultiColumn ? 'sm:grid-cols-2' : 'grid-cols-1'}`}
+          key={question.id}
+          className={`space-y-6 ${
+            slideDirection === 'next' ? 'animate-slide-next' : 'animate-slide-prev'
+          }`}
         >
-          {question.options.map((option) => (
-            <QuizOption
-              key={option.value}
-              label={option.label}
-              hint={option.hint}
-              icon={option.icon}
-              accentColor={option.accentColor}
-              selected={isOptionSelected(option.value)}
-              selectionMode={question.selectionMode}
-              onSelect={() => handleSelectOption(option.value)}
+          {/* Question Header with Warhol/Lichtenstein Pop Icon */}
+          <div className="flex items-start gap-4 pt-2">
+            <PopIcon
+              name={question.icon}
+              accent={question.accentColor || 'crimson-pop'}
+              size="lg"
             />
-          ))}
+            <div className="space-y-1.5">
+              <h1 className="font-display text-2xl font-extrabold leading-tight text-[#F6F4EE] sm:text-3xl">
+                {question.prompt}
+              </h1>
+              <p className="text-sm text-[#A8B1C7] sm:text-base">{question.helperText}</p>
+              {question.id === 'genres' ? (
+                <p className="text-xs font-semibold text-[#00E5FF] tabular-nums">
+                  Selected: {answers.genres.length} / {question.maxSelections ?? 3}
+                  {answers.genres.length === 0 ? ' (any genre works)' : ''}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          {/* Answer Options */}
+          <div
+            role={question.selectionMode === 'single' ? 'radiogroup' : 'group'}
+            aria-label={question.prompt}
+            className={`grid gap-3 ${isMultiColumn ? 'sm:grid-cols-2' : 'grid-cols-1'}`}
+          >
+            {question.options.map((option) => (
+              <QuizOption
+                key={option.value}
+                label={option.label}
+                hint={option.hint}
+                icon={option.icon}
+                accentColor={option.accentColor}
+                selected={isOptionSelected(option.value)}
+                selectionMode={question.selectionMode}
+                onSelect={() => handleSelectOption(option.value)}
+              />
+            ))}
+          </div>
         </div>
 
         {/* Desktop navigation bar */}
         <div className="hidden items-center justify-between gap-4 border-t border-white/10 pt-6 sm:flex">
           <Button
             variant="secondary"
-            onClick={() => onStepChange(currentStepIndex - 1)}
+            onClick={handleBack}
             disabled={isFirstStep}
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -217,7 +257,7 @@ export function QuizPage({
         <div className="mx-auto flex max-w-3xl items-center gap-3">
           <Button
             variant="secondary"
-            onClick={() => onStepChange(currentStepIndex - 1)}
+            onClick={handleBack}
             disabled={isFirstStep}
             className="flex-1"
           >

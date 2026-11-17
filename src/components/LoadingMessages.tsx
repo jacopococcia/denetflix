@@ -28,17 +28,20 @@ export function LoadingMessages({onCancel}: LoadingMessagesProps) {
     <section
       aria-live="polite"
       aria-busy="true"
-      className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-4 py-16 text-center"
+      className="animate-view-enter mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-4 py-16 text-center"
     >
       <div className="mb-6 flex items-center justify-center">
-        <DenetflixLogoMark size={72} />
+        <DenetflixLogoMark size={72} animated />
       </div>
 
       <h1 className="font-display text-2xl font-bold text-[#F6F4EE] sm:text-3xl">
         Digging up your rare retro lineup
       </h1>
 
-      <p className="mt-3 min-h-[28px] text-base font-semibold text-[#FF4D4D]">
+      <p
+        key={messageIndex}
+        className="animate-view-enter mt-3 min-h-[28px] text-base font-semibold text-[#FF4D4D]"
+      >
         {LOADING_MESSAGES[messageIndex]}
       </p>
 

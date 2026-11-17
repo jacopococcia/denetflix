@@ -27,7 +27,7 @@ export function QuizOption({
       role={selectionMode === 'single' ? 'radio' : 'checkbox'}
       aria-checked={selected}
       onClick={onSelect}
-      className={`group flex min-h-[58px] w-full items-center justify-between gap-3.5 rounded-xl border px-4 py-3 text-left transition-[background-color,border-color,transform] duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000] active:scale-[0.99] ${
+      className={`group flex min-h-[58px] w-full items-center justify-between gap-3.5 rounded-xl border px-4 py-3 text-left transition-[background-color,border-color,transform] duration-150 ease-out cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] ${
         selected
           ? 'border-[#E80000] bg-[#E80000]/16 text-[#F6F4EE]'
           : 'border-white/10 bg-[#141724] text-[#F6F4EE] hover:border-white/25 hover:bg-[#1B2033]'
@@ -44,11 +44,11 @@ export function QuizOption({
 
       <span
         aria-hidden="true"
-        className={`flex h-6 w-6 shrink-0 items-center justify-center transition-colors ${
+        className={`flex h-6 w-6 shrink-0 items-center justify-center transition-colors duration-150 ${
           selectionMode === 'single' ? 'rounded-full' : 'rounded-md'
         } ${
           selected
-            ? 'bg-[#E80000] text-white'
+            ? 'animate-pop-check bg-[#E80000] text-white'
             : 'border border-white/25 bg-[#0B0D14]/60 text-transparent group-hover:border-white/45'
         }`}
       >

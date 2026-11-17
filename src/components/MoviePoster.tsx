@@ -51,7 +51,7 @@ export function MoviePoster({movie}: MoviePosterProps) {
           decoding="async"
           referrerPolicy="no-referrer"
           onError={() => setImageError(true)}
-          className="h-full w-full object-cover saturate-125 contrast-105"
+          className="h-full w-full object-cover saturate-125 contrast-105 transition-transform duration-300 ease-out group-hover:scale-[1.03]"
         />
       </div>
     );
@@ -61,7 +61,7 @@ export function MoviePoster({movie}: MoviePosterProps) {
     <div
       role="img"
       aria-label={`${movie.title} (${movie.year}) 80s pop retro cinema poster`}
-      className={`relative flex aspect-[2/3] w-full flex-col justify-between overflow-hidden rounded-xl border-2 border-white/20 bg-gradient-to-br ${style.bg} p-4 shadow-[4px_4px_0px_#E80000]`}
+      className={`relative flex aspect-[2/3] w-full flex-col justify-between overflow-hidden rounded-xl border-2 border-white/20 bg-gradient-to-br ${style.bg} p-4 shadow-[4px_4px_0px_#E80000] transition-transform duration-200 ease-out group-hover:-translate-y-0.5`}
     >
       {/* Subtle 80s Pop Art halftone overlay */}
       <div className="pop-halftone pointer-events-none absolute inset-0 opacity-75" aria-hidden="true" />

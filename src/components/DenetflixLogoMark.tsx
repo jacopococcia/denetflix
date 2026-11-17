@@ -1,4 +1,10 @@
-export function DenetflixLogoMark({size = 38}: {size?: number}) {
+export function DenetflixLogoMark({
+  size = 38,
+  animated = false,
+}: {
+  size?: number;
+  animated?: boolean;
+}) {
   return (
     <svg
       width={size}
@@ -6,7 +12,9 @@ export function DenetflixLogoMark({size = 38}: {size?: number}) {
       viewBox="0 0 64 64"
       fill="none"
       aria-hidden="true"
-      className="shrink-0 drop-shadow-[2px_2px_0px_#000000]"
+      className={`shrink-0 drop-shadow-[2px_2px_0px_#000000] transition-transform duration-200 ease-out hover:-rotate-3 hover:scale-105 ${
+        animated ? 'animate-reel-float' : ''
+      }`}
     >
       {/* Bold crimson & black comic frame */}
       <rect x="3" y="3" width="58" height="58" rx="12" fill="#E80000" stroke="#000000" strokeWidth="3.5" />

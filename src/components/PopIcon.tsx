@@ -154,7 +154,7 @@ export function PopIcon({name, accent = 'crimson-pop', size = 'md'}: PopIconProp
   return (
     <span
       aria-hidden="true"
-      className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden border-2 ${box} ${ACCENT_STYLES[accent]}`}
+      className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden border-2 transition-transform duration-150 ease-out group-hover:scale-105 group-hover:-rotate-3 ${box} ${ACCENT_STYLES[accent]}`}
     >
       <span className="pop-halftone pointer-events-none absolute inset-0 opacity-35" />
       <span className="relative z-10 flex items-center justify-center">{renderIcon()}</span>

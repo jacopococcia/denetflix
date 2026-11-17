@@ -1,4 +1,5 @@
 import {AMAZON_AFFILIATE_DISCLOSURE} from '../services/amazonService';
+import {SoundToggle} from './SoundToggle';
 
 interface FooterProps {
   onOpenLegalModal: (topic: 'privacy' | 'terms') => void;
@@ -17,6 +18,9 @@ export function Footer({onOpenLegalModal}: FooterProps) {
             <p className="text-sm leading-relaxed">
               Rare, cult, and underseen 1960s–1990s movie discovery from American, Italian, and international cinema. Zero accounts, zero endless scrolling.
             </p>
+            <div className="pt-1">
+              <SoundToggle className="border border-white/10 bg-[#141724]" />
+            </div>
           </div>
 
           <div className="space-y-2 text-xs leading-relaxed">
