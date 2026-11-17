@@ -56,13 +56,14 @@ export async function resolveLiveAmazonAsin(
   }
 
   const apiBase = getApiBaseUrl();
-  const timeout = createTimeoutSignal(callerSignal, 4000);
+  const timeout = createTimeoutSignal(callerSignal, 2800);
   try {
     const res = await fetch(
       `${apiBase}/api/amazon/asin?title=${encodeURIComponent(title)}&year=${encodeURIComponent(String(year))}`,
       {signal: timeout.signal},
     );
-    if (!res.ok) return null;
+    const contentType = res.headers.get('content-type') || '';
+    if (!res.ok || !contentType.includes('application/json')) return null;
     const data = (await res.json()) as {asin?: string | null};
     const asin =
       typeof data.asin === 'string' && /^[A-Z0-9]{10}$/.test(data.asin) ? data.asin : null;

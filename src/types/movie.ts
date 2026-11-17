@@ -32,6 +32,7 @@ export interface AvailabilityInfo {
   watchLink?: string;
   sourceAttribution?: string;
   message: string;
+  fallbackLinks?: Array<{label: string; url: string}>;
 }
 
 export interface AvailabilityAndTrailerResult {
@@ -52,7 +53,10 @@ export interface PhysicalMediaLink {
 export interface Movie {
   id: string;
   tmdbId?: number;
+  justwatchId?: string;
   wikiSlug?: string;
+  trailerYoutubeId?: string;
+  archiveOrgId?: string;
   title: string;
   year: number;
   decade: '1960s' | '1970s' | '1980s' | '1990s';

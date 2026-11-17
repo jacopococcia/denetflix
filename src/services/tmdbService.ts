@@ -419,7 +419,8 @@ export async function fetchMoviesFromTmdb(
       signal: proxyTimeout.signal,
     });
 
-    if (proxyRes.ok) {
+    const contentType = proxyRes.headers.get('content-type') || '';
+    if (proxyRes.ok && contentType.includes('application/json')) {
       const data = (await proxyRes.json()) as {
         configured?: boolean;
         movies?: TmdbMovieDetail[];

@@ -55,7 +55,7 @@ export default function App() {
         if (activeRequestRef.current === controller) {
           controller.abort();
         }
-      }, 11000);
+      }, 15000);
 
       try {
         const result = await generateRecommendations(

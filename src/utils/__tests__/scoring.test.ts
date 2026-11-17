@@ -2,12 +2,14 @@ import {describe, expect, it} from 'vitest';
 import {VERIFIED_AMAZON_ASINS} from '../../data/amazonAsins';
 import {FALLBACK_MOVIES} from '../../data/fallbackMovies';
 import {DEFAULT_QUIZ_ANSWERS, QUIZ_QUESTIONS} from '../../data/quizQuestions';
+import {lookupVerifiedTrailer, VERIFIED_TRAILERS} from '../../data/verifiedTrailers';
 import {
   buildAmazonProductUrl,
   buildAmazonSearchUrl,
   createPhysicalMediaLink,
 } from '../../services/amazonService';
 import {normalizeJustWatchCatalogMovie} from '../../services/catalogDiscoveryService';
+import {buildUnverifiedAvailability} from '../../services/streamingService';
 import {normalizeTmdbMovieDetail} from '../../services/tmdbService';
 import type {Movie} from '../../types/movie';
 import type {MoodPreference, MovieGenre, MovieOrigin} from '../../types/quiz';
@@ -452,5 +454,42 @@ describe('Denetflix rare-gem scoring and strict recommendation engine', () => {
     const idsA = runA.map((r) => r.movie.id).join(',');
     const idsB = runB.map((r) => r.movie.id).join(',');
     expect(idsA).not.toBe(idsB);
+  });
+
+  it('preserves justwatchId, validates VERIFIED_TRAILERS IDs, and provides safe static-mode fallback links', () => {
+    const jwMovie = normalizeJustWatchCatalogMovie({
+      id: 'jw-tm42368',
+      justwatchId: 'tm42368',
+      title: 'Tenebrae',
+      year: 1982,
+      runtime: 101,
+      overview: 'Giallo thriller.',
+      productionCountries: ['IT'],
+      posterUrl: null,
+      genreCodes: ['hrr', 'trl'],
+      director: 'Dario Argento',
+      imdbVotes: 42000,
+      imdbScore: 7.1,
+    });
+    expect(jwMovie).not.toBeNull();
+    expect(jwMovie!.justwatchId).toBe('tm42368');
+
+    const fallbackIdSet = new Set(FALLBACK_MOVIES.map((m) => m.id));
+    const entries = Object.entries(VERIFIED_TRAILERS);
+    expect(entries.length).toBeGreaterThanOrEqual(80);
+    for (const [movieId, ytId] of entries) {
+      expect(fallbackIdSet.has(movieId)).toBe(true);
+      expect(ytId).toMatch(/^[A-Za-z0-9_-]{11}$/);
+      expect(lookupVerifiedTrailer(movieId)).toBe(ytId);
+    }
+
+    const staticFallback = buildUnverifiedAvailability(
+      'IT',
+      'Search directly on platforms for Italy:',
+      'Tenebrae',
+      1982,
+    );
+    expect(staticFallback.fallbackLinks?.length).toBeGreaterThanOrEqual(3);
+    expect(staticFallback.fallbackLinks?.some((l) => l.url.includes('justwatch'))).toBe(false);
   });
 });

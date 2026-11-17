@@ -9,6 +9,7 @@ import {
 
 export interface ServerDiscoverItem {
   id: string;
+  justwatchId?: string;
   tmdbId?: number;
   title: string;
   year: number;
@@ -179,6 +180,7 @@ export function normalizeJustWatchCatalogMovie(item: ServerDiscoverItem): Movie 
 
   return {
     id: item.id,
+    justwatchId: item.justwatchId,
     tmdbId: item.tmdbId,
     title: item.title,
     year: item.year,
@@ -271,7 +273,7 @@ export async function fetchMoviesFromWikidata(
     const offset = shuffleSeed > 0 ? ((shuffleSeed + index * 13) % 4) * 35 : 0;
 
     const sparql = `
-SELECT DISTINCT ?film (MIN(YEAR(?date)) AS ?year) ?articleTitle WHERE {
+SELECT DISTINCT ?film (MIN(YEAR(?date)) AS ?year) ?articleTitle (SAMPLE(?yt) AS ?ytId) (SAMPLE(?ia) AS ?iaId) WHERE {
   ?film wdt:P31 wd:Q11424 ;
         wdt:P136 ${genreQid} ;
         wdt:P577 ?date .
@@ -280,12 +282,14 @@ SELECT DISTINCT ?film (MIN(YEAR(?date)) AS ?year) ?articleTitle WHERE {
   ?article schema:about ?film ;
            schema:isPartOf <https://en.wikipedia.org/> ;
            schema:name ?articleTitle .
+  OPTIONAL { ?film wdt:P1651 ?yt . }
+  OPTIONAL { ?film wdt:P724 ?ia . }
 }
 GROUP BY ?film ?articleTitle
 LIMIT 50
 OFFSET ${offset}`;
 
-    const timeout = createTimeoutSignal(callerSignal, 5500);
+    const timeout = createTimeoutSignal(callerSignal, 7800);
     try {
       const res = await fetch(
         `https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(sparql)}`,
@@ -301,6 +305,8 @@ OFFSET ${offset}`;
             film?: {value?: string};
             year?: {value?: string};
             articleTitle?: {value?: string};
+            ytId?: {value?: string};
+            iaId?: {value?: string};
           }>;
         };
       };
@@ -339,6 +345,11 @@ OFFSET ${offset}`;
 
         const cleanTitle = rawArticle.replace(/\s*\([^)]*film[^)]*\)\s*$/i, '').trim();
         const wikiSlug = rawArticle.replace(/\s+/g, '_');
+        const rawYt = row.ytId?.value?.trim() || '';
+        const trailerYoutubeId = /^[A-Za-z0-9_-]{11}$/.test(rawYt) ? rawYt : undefined;
+        const rawIa = row.iaId?.value?.trim() || '';
+        const archiveOrgId = /^[A-Za-z0-9._-]+$/.test(rawIa) ? rawIa : undefined;
+
         const decade = getDecadeBucket(year);
         const traits = inferTraitsFromGenres(
           [genre],
@@ -350,6 +361,8 @@ OFFSET ${offset}`;
         output.push({
           id: `wd-${qid}`,
           wikiSlug,
+          trailerYoutubeId,
+          archiveOrgId,
           title: cleanTitle,
           year,
           decade,
@@ -451,6 +464,8 @@ export async function discoverLiveCatalog(
         signal: timeout.signal,
       });
       if (!res.ok) return [];
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) return [];
       const payload = (await res.json()) as {
         ok?: boolean;
         movies?: ServerDiscoverItem[];

@@ -1,4 +1,5 @@
 import {FALLBACK_MOVIES} from '../data/fallbackMovies';
+import {lookupVerifiedTrailer} from '../data/verifiedTrailers';
 import type {
   GeminiRecommendationResponse,
   Movie,
@@ -139,9 +140,13 @@ async function resolveMediaAndAvailabilityForBatch(
         try {
           return await fetchAvailabilityAndTrailer(
             {
+              movieId: movie.id,
               title: movie.title,
               year: movie.year,
               tmdbId: movie.tmdbId,
+              justwatchId: movie.justwatchId,
+              fallbackTrailerYoutubeId: movie.trailerYoutubeId,
+              archiveOrgId: movie.archiveOrgId,
               countryCode,
             },
             signal,
@@ -149,8 +154,13 @@ async function resolveMediaAndAvailabilityForBatch(
         } catch (error) {
           if ((error as Error)?.name === 'AbortError' && signal?.aborted) throw error;
           return {
-            availability: buildUnverifiedAvailability(countryCode),
-            trailerYoutubeId: null,
+            availability: buildUnverifiedAvailability(
+              countryCode,
+              'Streaming availability could not be verified right now.',
+              movie.title,
+              movie.year,
+            ),
+            trailerYoutubeId: movie.trailerYoutubeId ?? lookupVerifiedTrailer(movie.id),
             trailerTitle: null,
           };
         }
@@ -203,7 +213,10 @@ export async function generateRecommendations(
       mergedByKey.set(key, {
         ...existing,
         tmdbId: liveMovie.tmdbId ?? existing.tmdbId,
+        justwatchId: liveMovie.justwatchId ?? existing.justwatchId,
         wikiSlug: liveMovie.wikiSlug ?? existing.wikiSlug,
+        trailerYoutubeId: liveMovie.trailerYoutubeId ?? existing.trailerYoutubeId,
+        archiveOrgId: liveMovie.archiveOrgId ?? existing.archiveOrgId,
         posterUrl: liveMovie.posterUrl ?? existing.posterUrl,
         posterSource: liveMovie.posterUrl ? 'tmdb' : existing.posterSource,
         runtimeMinutes: liveMovie.runtimeMinutes ?? existing.runtimeMinutes,
@@ -274,8 +287,11 @@ export async function generateRecommendations(
           availability: buildUnverifiedAvailability(
             preferences.countryCode,
             'Checking regional streaming availability...',
+            item.movie.title,
+            item.movie.year,
           ),
-          trailerYoutubeId: null,
+          trailerYoutubeId:
+            item.movie.trailerYoutubeId ?? lookupVerifiedTrailer(item.movie.id),
           trailerTitle: null,
         };
 

@@ -146,9 +146,43 @@ const JUSTWATCH_SEARCH_QUERY = `
   }
 `;
 
+const JUSTWATCH_NODE_QUERY = `
+  query GetTitleById($id: ID!, $country: Country!, $language: Language!) {
+    node(id: $id) {
+      id
+      ... on MovieOrShow {
+        objectType
+        content(country: $country, language: $language) {
+          title
+          originalReleaseYear
+          fullPath
+          clips {
+            sourceUrl
+            provider
+            externalId
+            name
+          }
+        }
+        offers(country: $country, platform: WEB) {
+          monetizationType
+          presentationType
+          standardWebURL
+          package {
+            clearName
+            packageId
+            shortName
+          }
+        }
+      }
+    }
+  }
+`;
+
 function normalizeComparableTitle(value: string): string {
   return value
     .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/&/g, ' and ')
     .replace(/^the\s+/i, '')
     .replace(/[^a-z0-9\s]/g, ' ')
@@ -156,7 +190,64 @@ function normalizeComparableTitle(value: string): string {
     .trim();
 }
 
-function scoreJustWatchNode(node: JustWatchNode, targetTitle: string, targetYear?: number): number {
+function bigramSimilarity(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return 0;
+  const bigramsA = new Map<string, number>();
+  for (let i = 0; i < a.length - 1; i += 1) {
+    const bg = a.slice(i, i + 2);
+    bigramsA.set(bg, (bigramsA.get(bg) ?? 0) + 1);
+  }
+  let hits = 0;
+  for (let i = 0; i < b.length - 1; i += 1) {
+    const bg = b.slice(i, i + 2);
+    const count = bigramsA.get(bg) ?? 0;
+    if (count > 0) {
+      bigramsA.set(bg, count - 1);
+      hits += 1;
+    }
+  }
+  return (2 * hits) / (a.length + b.length - 2);
+}
+
+function extractTitleVariants(rawTitle: string): string[] {
+  const trimmed = rawTitle.trim();
+  const variants: string[] = [];
+  const pushUnique = (candidate: string) => {
+    const clean = candidate.trim();
+    if (clean.length >= 2 && !variants.includes(clean)) {
+      variants.push(clean);
+    }
+  };
+
+  pushUnique(trimmed);
+  const withoutParens = trimmed.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  pushUnique(withoutParens);
+
+  const parenMatches = trimmed.match(/\(([^)]+)\)/g) || [];
+  for (const m of parenMatches) {
+    const inner = m.slice(1, -1).trim();
+    if (inner.length >= 3 && !/^\d{4}$/.test(inner)) {
+      pushUnique(inner);
+    }
+  }
+
+  if (withoutParens.includes(':')) {
+    const beforeColon = withoutParens.split(':')[0].trim();
+    const afterColon = withoutParens.split(':').slice(1).join(':').trim();
+    if (beforeColon.length >= 4) pushUnique(beforeColon);
+    if (afterColon.length >= 4) pushUnique(afterColon);
+  }
+
+  return variants;
+}
+
+function scoreJustWatchNodeAgainstSingleTarget(
+  node: JustWatchNode,
+  targetTitle: string,
+  targetYear?: number,
+): number {
   if (node.objectType !== 'MOVIE' || !node.content?.title) {
     return -1000;
   }
@@ -168,8 +259,9 @@ function scoreJustWatchNode(node: JustWatchNode, targetTitle: string, targetYear
   }
 
   const candidateYear = node.content.originalReleaseYear;
+  let yearDiff = 0;
   if (typeof targetYear === 'number' && typeof candidateYear === 'number') {
-    const yearDiff = Math.abs(candidateYear - targetYear);
+    yearDiff = Math.abs(candidateYear - targetYear);
     if (yearDiff > 2) {
       return -1000;
     }
@@ -182,19 +274,34 @@ function scoreJustWatchNode(node: JustWatchNode, targetTitle: string, targetYear
     candidateTitle.includes(normalizedTarget) ||
     normalizedTarget.includes(candidateTitle)
   ) {
-    score += 55;
+    score += 60;
   } else {
     const targetWords = new Set(normalizedTarget.split(' ').filter((w) => w.length > 2));
     const candWords = candidateTitle.split(' ').filter((w) => w.length > 2);
     const overlap = candWords.filter((w) => targetWords.has(w)).length;
-    if (overlap === 0) {
+    const sim = bigramSimilarity(candidateTitle, normalizedTarget);
+
+    if (overlap > 0) {
+      score += overlap * 18;
+    } else if (sim >= 0.55 && yearDiff <= 1) {
+      // Handles localized spelling variants like "Tenebrae" vs "Tenebre" when release year matches
+      score += Math.round(sim * 55);
+    } else if (
+      candWords.some((w) =>
+        [...targetWords].some(
+          (tw) => w.slice(0, 5) === tw.slice(0, 5) && w.length >= 5 && tw.length >= 5,
+        ),
+      ) &&
+      yearDiff === 0
+    ) {
+      // Handles cognates like "Calibro 9" vs "Caliber 9" on exact release year
+      score += 35;
+    } else {
       return -1000;
     }
-    score += overlap * 15;
   }
 
   if (typeof targetYear === 'number' && typeof candidateYear === 'number') {
-    const yearDiff = Math.abs(candidateYear - targetYear);
     if (yearDiff === 0) score += 50;
     else if (yearDiff === 1) score += 30;
     else if (yearDiff === 2) score += 10;
@@ -203,9 +310,49 @@ function scoreJustWatchNode(node: JustWatchNode, targetTitle: string, targetYear
   return score;
 }
 
+function scoreJustWatchNode(node: JustWatchNode, targetTitle: string, targetYear?: number): number {
+  const variants = extractTitleVariants(targetTitle);
+  let best = -1000;
+  for (const variant of variants) {
+    const score = scoreJustWatchNodeAgainstSingleTarget(node, variant, targetYear);
+    if (score > best) best = score;
+  }
+  return best;
+}
+
+async function queryJustWatchNodeById(
+  justwatchId: string,
+  countryCode: string,
+  language: string = 'en',
+): Promise<JustWatchNode | null> {
+  const response = await fetch('https://apis.justwatch.com/graphql', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (compatible; Denetflix/1.0)',
+    },
+    body: JSON.stringify({
+      operationName: 'GetTitleById',
+      variables: {
+        id: justwatchId,
+        country: countryCode,
+        language,
+      },
+      query: JUSTWATCH_NODE_QUERY,
+    }),
+    signal: AbortSignal.timeout(4500),
+  });
+  if (!response.ok) return null;
+  const json = (await response.json()) as {
+    data?: {node?: JustWatchNode | null};
+  };
+  return json.data?.node ?? null;
+}
+
 async function queryJustWatchNodes(
   searchQuery: string,
   countryCode: string,
+  language: string = 'en',
 ): Promise<JustWatchNode[]> {
   const response = await fetch('https://apis.justwatch.com/graphql', {
     method: 'POST',
@@ -217,7 +364,7 @@ async function queryJustWatchNodes(
       operationName: 'GetSearchTitles',
       variables: {
         country: countryCode,
-        language: 'en',
+        language,
         first: 6,
         searchTitlesFilter: {searchQuery},
       },
@@ -260,24 +407,55 @@ async function verifyYoutubeEmbeddable(
       `https://www.youtube.com/watch?v=${youtubeId}`,
     )}&format=json`;
     const res = await fetch(oembedUrl, {signal: AbortSignal.timeout(2500)});
-    if (!res.ok) {
+    if (res.ok) {
+      const data = (await res.json()) as {title?: string};
+      youtubeOembedCache.set(youtubeId, {
+        ok: true,
+        title: data.title,
+        expiresAt: Date.now() + WIKI_POSTER_TTL_MS,
+      });
+      return {ok: true, title: data.title};
+    }
+    if (res.status === 400 || res.status === 404) {
       youtubeOembedCache.set(youtubeId, {
         ok: false,
         expiresAt: Date.now() + WIKI_POSTER_TTL_MS,
       });
       return {ok: false};
     }
-    const data = (await res.json()) as {title?: string};
-    youtubeOembedCache.set(youtubeId, {
-      ok: true,
-      title: data.title,
-      expiresAt: Date.now() + WIKI_POSTER_TTL_MS,
-    });
-    return {ok: true, title: data.title};
   } catch {
-    // If oEmbed times out briefly, fail safe rather than rendering a dead embed
-    return {ok: false};
+    // Rate limit or oEmbed timeout on cloud IP: verify video thumbnail on YouTube CDN below
   }
+
+  try {
+    const thumbRes = await fetch(`https://i.ytimg.com/vi/${youtubeId}/mqdefault.jpg`, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(2000),
+    });
+    if (thumbRes.ok) {
+      youtubeOembedCache.set(youtubeId, {
+        ok: true,
+        expiresAt: Date.now() + WIKI_POSTER_TTL_MS,
+      });
+      return {ok: true};
+    }
+  } catch {
+    // Ignore
+  }
+
+  return {ok: false};
+}
+
+function extractYoutubeIdFromClip(clip: JustWatchClip | null | undefined): string | null {
+  if (!clip) return null;
+  if (typeof clip.externalId === 'string' && /^[A-Za-z0-9_-]{11}$/.test(clip.externalId)) {
+    return clip.externalId;
+  }
+  if (typeof clip.sourceUrl === 'string') {
+    const match = clip.sourceUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+    if (match) return match[1];
+  }
+  return null;
 }
 
 async function pickVerifiedYoutubeTrailer(
@@ -288,33 +466,32 @@ async function pickVerifiedYoutubeTrailer(
   }
 
   const rankedClips = clips
-    .filter(
-      (c): c is JustWatchClip & {externalId: string} =>
-        c?.provider === 'YOUTUBE' &&
-        typeof c.externalId === 'string' &&
-        /^[A-Za-z0-9_-]{11}$/.test(c.externalId),
-    )
-    .map((clip) => {
+    .map((clip) => ({clip, ytId: extractYoutubeIdFromClip(clip)}))
+    .filter((entry): entry is {clip: JustWatchClip; ytId: string} => {
+      if (!entry.ytId) return false;
+      return !entry.clip.provider || entry.clip.provider === 'YOUTUBE';
+    })
+    .map(({clip, ytId}) => {
       const name = (clip.name || '').toLowerCase();
       let priority = 0;
       if (name.includes('official trailer')) priority += 40;
       else if (name.includes('trailer')) priority += 30;
-      else if (name.includes('teaser')) priority += 15;
+      else if (name.includes('teaser') || name.includes('promo')) priority += 15;
       if (name.includes('hd') || name.includes('4k') || name.includes('restoration')) priority += 5;
       if (name.includes('review') || name.includes('explained') || name.includes('reaction')) {
         priority -= 50;
       }
-      return {clip, priority};
+      return {clip, ytId, priority};
     })
     .filter((item) => item.priority >= 0)
     .sort((a, b) => b.priority - a.priority)
-    .slice(0, 3);
+    .slice(0, 5);
 
-  for (const {clip} of rankedClips) {
-    const check = await verifyYoutubeEmbeddable(clip.externalId);
+  for (const {clip, ytId} of rankedClips) {
+    const check = await verifyYoutubeEmbeddable(ytId);
     if (check.ok) {
       return {
-        trailerYoutubeId: clip.externalId,
+        trailerYoutubeId: ytId,
         trailerTitle: clip.name || check.title || null,
       };
     }
@@ -386,25 +563,33 @@ async function resolveAvailabilityViaJustWatch(
   title: string,
   year: number | undefined,
   countryCode: string,
+  justwatchId?: string,
 ): Promise<CachedAvailabilityPayload | null> {
   try {
-    let nodes = await queryJustWatchNodes(title, countryCode);
     let bestNode: JustWatchNode | null = null;
     let bestScore = -1;
 
-    for (const node of nodes) {
-      const score = scoreJustWatchNode(node, title, year);
-      if (score > bestScore) {
-        bestScore = score;
-        bestNode = node;
-      }
+    // 1. Direct exact JustWatch node(id) lookup when coming from /api/discover
+    if (justwatchId && /^tm\d+$/i.test(justwatchId)) {
+      bestNode = await queryJustWatchNodeById(justwatchId, countryCode, 'en');
     }
 
-    // Fallback search stripping subtitle prefix (e.g. "Danger: Diabolik" -> "Diabolik")
-    if (!bestNode && title.includes(':')) {
-      const stripped = title.split(':').slice(1).join(':').trim();
-      if (stripped.length >= 4) {
-        nodes = await queryJustWatchNodes(stripped, countryCode);
+    // 2. Title search fallback across clean/parenthetical title variants and local language
+    const titleVariants = extractTitleVariants(title);
+    if (!bestNode) {
+      const searchPlans: Array<{query: string; lang: string}> = [];
+      for (const variant of titleVariants) {
+        searchPlans.push({query: variant, lang: 'en'});
+      }
+      if (countryCode !== 'US') {
+        const localLang = countryCode.toLowerCase();
+        for (const variant of titleVariants) {
+          searchPlans.push({query: variant, lang: localLang});
+        }
+      }
+
+      for (const plan of searchPlans) {
+        const nodes = await queryJustWatchNodes(plan.query, countryCode, plan.lang);
         for (const node of nodes) {
           const score = scoreJustWatchNode(node, title, year);
           if (score > bestScore) {
@@ -412,36 +597,43 @@ async function resolveAvailabilityViaJustWatch(
             bestNode = node;
           }
         }
+        if (bestNode && bestScore >= 100) break;
       }
     }
 
-    let clipsToCheck: JustWatchClip[] = bestNode?.content?.clips ?? [];
+    const clipsToCheck: JustWatchClip[] = bestNode?.content?.clips ?? [];
+    let trailer = await pickVerifiedYoutubeTrailer(clipsToCheck);
 
-    // If local country has no clips, check US JustWatch purely for YouTube trailer clips
-    if (clipsToCheck.length === 0 && countryCode !== 'US') {
+    // If local country had no clips OR its clips failed verification, fall back to US clips
+    if (!trailer.trailerYoutubeId && countryCode !== 'US') {
       try {
-        const usNodes = await queryJustWatchNodes(title, 'US');
-        let bestUsNode: JustWatchNode | null = null;
-        let bestUsScore = -1;
-        for (const node of usNodes) {
-          const score = scoreJustWatchNode(node, title, year);
-          if (score > bestUsScore) {
-            bestUsScore = score;
-            bestUsNode = node;
+        let usNode: JustWatchNode | null = null;
+        if (justwatchId && /^tm\d+$/i.test(justwatchId)) {
+          usNode = await queryJustWatchNodeById(justwatchId, 'US', 'en');
+        }
+        if (!usNode) {
+          let bestUsScore = -1;
+          for (const variant of titleVariants.slice(0, 3)) {
+            const usNodes = await queryJustWatchNodes(variant, 'US', 'en');
+            for (const node of usNodes) {
+              const score = scoreJustWatchNode(node, title, year);
+              if (score > bestUsScore) {
+                bestUsScore = score;
+                usNode = node;
+              }
+            }
+            if (usNode && bestUsScore >= 100) break;
           }
         }
-        if (bestUsNode?.content?.clips?.length) {
-          clipsToCheck = bestUsNode.content.clips;
+        if (usNode?.content?.clips?.length) {
+          trailer = await pickVerifiedYoutubeTrailer(usNode.content.clips);
         }
       } catch {
-        // Ignore secondary trailer-only fallback failure
+        // Ignore secondary US clip fallback error
       }
     }
 
-    const trailerPromise = pickVerifiedYoutubeTrailer(clipsToCheck);
-
     if (!bestNode) {
-      const trailer = await trailerPromise;
       return {
         status: 'not-found',
         countryCode,
@@ -459,8 +651,6 @@ async function resolveAvailabilityViaJustWatch(
     const watchLink = fullPath
       ? `https://www.justwatch.com${fullPath}`
       : `https://www.justwatch.com/${countryCode.toLowerCase()}/search?q=${encodeURIComponent(title)}`;
-
-    const trailer = await trailerPromise;
 
     if (offers.length === 0) {
       return {
@@ -634,7 +824,7 @@ async function startServer() {
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
           'Accept-Language': 'en-US,en;q=0.9',
         },
-        signal: AbortSignal.timeout(4500),
+        signal: AbortSignal.timeout(2500),
       });
       if (!amzRes.ok) {
         return res.json({asin: null});
@@ -897,6 +1087,7 @@ async function startServer() {
       const seenJwKeys = new Set<string>();
       const collected: Array<{
         id: string;
+        justwatchId?: string;
         tmdbId?: number;
         title: string;
         year: number;
@@ -964,6 +1155,7 @@ async function startServer() {
 
         collected.push({
           id: node.id ? `jw-${node.id.replace(/[^a-zA-Z0-9_-]/g, '')}` : `jw-${collected.length}-${year}`,
+          justwatchId: node.id || undefined,
           tmdbId: Number.isFinite(tmdbNumeric) && tmdbNumeric > 0 ? tmdbNumeric : undefined,
           title: c.title,
           year,
@@ -1193,6 +1385,7 @@ async function startServer() {
       title?: string;
       year?: number;
       tmdbId?: number;
+      justwatchId?: string;
       countryCode?: string;
     };
 
@@ -1202,6 +1395,10 @@ async function startServer() {
       typeof body?.tmdbId === 'number' && Number.isFinite(body.tmdbId) && body.tmdbId > 0
         ? body.tmdbId
         : undefined;
+    const justwatchId =
+      typeof body?.justwatchId === 'string' && /^tm\d+$/i.test(body.justwatchId.trim())
+        ? body.justwatchId.trim()
+        : undefined;
     const rawCountry = typeof body?.countryCode === 'string' ? body.countryCode.trim().toUpperCase() : 'US';
     const countryCode = /^[A-Z]{2}$/.test(rawCountry) ? rawCountry : 'US';
 
@@ -1209,7 +1406,7 @@ async function startServer() {
       return res.status(400).json({error: 'Movie title is required.'});
     }
 
-    const cacheKey = `${countryCode}::${tmdbId || ''}::${title.toLowerCase()}::${year || ''}`;
+    const cacheKey = `${countryCode}::${justwatchId || ''}::${tmdbId || ''}::${title.toLowerCase()}::${year || ''}`;
     const cached = availabilityServerCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return res.json(cached.data);
@@ -1329,8 +1526,8 @@ async function startServer() {
       }
     }
 
-    // 2. Primary live lookup via JustWatch GraphQL
-    const jwResult = await resolveAvailabilityViaJustWatch(title, year, countryCode);
+    // 2. Primary live lookup via JustWatch GraphQL (direct node ID when known, else fuzzy title match)
+    const jwResult = await resolveAvailabilityViaJustWatch(title, year, countryCode, justwatchId);
     if (jwResult) {
       const mergedResult: CachedAvailabilityPayload = {
         ...jwResult,
