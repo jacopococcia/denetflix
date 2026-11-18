@@ -108,6 +108,7 @@ interface JustWatchNode {
     title?: string | null;
     originalReleaseYear?: number | null;
     fullPath?: string | null;
+    posterUrl?: string | null;
     clips?: JustWatchClip[] | null;
   } | null;
   offers?: JustWatchOffer[] | null;
@@ -123,6 +124,7 @@ const JUSTWATCH_SEARCH_QUERY = `
             title
             originalReleaseYear
             fullPath
+            posterUrl
             clips {
               sourceUrl
               provider
@@ -156,6 +158,7 @@ const JUSTWATCH_NODE_QUERY = `
           title
           originalReleaseYear
           fullPath
+          posterUrl
           clips {
             sourceUrl
             provider
@@ -749,40 +752,136 @@ async function startServer() {
     });
   });
 
-  // Cached Wikipedia REST poster resolver for fallback/demo catalog when TMDB key isn't configured
+  // Multi-source movie poster resolver: Wikipedia REST -> IMDb public suggestion -> JustWatch GraphQL
   app.get('/api/poster', async (req, res) => {
     const rawSlug = typeof req.query.slug === 'string' ? req.query.slug.trim() : '';
-    if (!rawSlug || rawSlug.length > 160) {
+    const rawTitle = typeof req.query.title === 'string' ? req.query.title.trim() : '';
+    const rawYear = typeof req.query.year === 'string' ? Number.parseInt(req.query.year, 10) : NaN;
+    const year = Number.isFinite(rawYear) && rawYear >= 1950 && rawYear <= 2005 ? rawYear : undefined;
+
+    if ((!rawSlug && !rawTitle) || rawSlug.length > 160 || rawTitle.length > 160) {
       return res.status(400).json({posterUrl: null});
     }
 
-    const cached = wikiPosterCache.get(rawSlug);
+    const cacheKey = `${rawSlug.toLowerCase()}::${rawTitle.toLowerCase()}::${year ?? ''}`;
+    const cached = wikiPosterCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return res.json({posterUrl: cached.posterUrl});
     }
 
-    try {
-      const response = await fetch(
-        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(rawSlug)}`,
-        {
-          headers: {
-            'User-Agent': 'Denetflix/1.0 (https://github.com/denetflix)',
-            Accept: 'application/json',
+    let resolvedPoster: string | null = null;
+
+    // 1. Wikipedia REST API (when wikiSlug is known)
+    if (rawSlug) {
+      try {
+        const response = await fetch(
+          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(rawSlug)}`,
+          {
+            headers: {
+              'User-Agent': 'Denetflix/1.0 (https://www.jacopococcia.com)',
+              Accept: 'application/json',
+            },
+            signal: AbortSignal.timeout(3000),
           },
-          signal: AbortSignal.timeout(3500),
-        },
-      );
-      if (!response.ok) {
-        wikiPosterCache.set(rawSlug, {posterUrl: null, expiresAt: Date.now() + 30 * 60 * 1000});
-        return res.json({posterUrl: null});
+        );
+        if (response.ok) {
+          const data = (await response.json()) as {thumbnail?: {source?: string}};
+          resolvedPoster = data.thumbnail?.source ?? null;
+        }
+      } catch {
+        // Fall through to IMDb / JustWatch
       }
-      const data = (await response.json()) as {thumbnail?: {source?: string}};
-      const posterUrl = data.thumbnail?.source ?? null;
-      wikiPosterCache.set(rawSlug, {posterUrl, expiresAt: Date.now() + WIKI_POSTER_TTL_MS});
-      return res.json({posterUrl});
-    } catch {
-      return res.json({posterUrl: null});
     }
+
+    // 2. IMDb public suggestion JSON API (strict title + year match, returns high-res Amazon/IMDb theatrical posters)
+    const lookupTitle = rawTitle || rawSlug.replace(/_/g, ' ').replace(/\s*\([^)]*film[^)]*\)\s*$/i, '').trim();
+    if (!resolvedPoster && lookupTitle) {
+      try {
+        const variants = extractTitleVariants(lookupTitle);
+        for (const variant of variants.slice(0, 2)) {
+          const clean = normalizeComparableTitle(variant);
+          if (!clean) continue;
+          const firstChar = clean[0] || 'a';
+          const imdbRes = await fetch(
+            `https://v3.sg.media-imdb.com/suggestion/${encodeURIComponent(firstChar)}/${encodeURIComponent(clean)}.json`,
+            {
+              headers: {'User-Agent': 'Mozilla/5.0 (compatible; Denetflix/1.0)'},
+              signal: AbortSignal.timeout(3000),
+            },
+          );
+          if (!imdbRes.ok) continue;
+          const imdbJson = (await imdbRes.json()) as {
+            d?: Array<{
+              l?: string;
+              q?: string;
+              qid?: string;
+              y?: number;
+              i?: {imageUrl?: string};
+            }>;
+          };
+          const candidates = (imdbJson.d || []).filter(
+            (item) =>
+              item.i?.imageUrl &&
+              (item.qid === 'movie' || item.q === 'feature' || item.q === 'TV movie'),
+          );
+          let bestHit: {url: string; score: number} | null = null;
+          for (const item of candidates) {
+            if (year && typeof item.y === 'number' && Math.abs(item.y - year) > 2) continue;
+            if (year && typeof item.y !== 'number') continue;
+            const candNorm = normalizeComparableTitle(item.l || '');
+            let score = 0;
+            if (candNorm === clean) score += 100;
+            else if (candNorm.includes(clean) || clean.includes(candNorm)) score += 60;
+            else if (bigramSimilarity(candNorm, clean) >= 0.6) score += 45;
+            else continue;
+            if (year && item.y === year) score += 30;
+            if (!bestHit || score > bestHit.score) {
+              bestHit = {url: item.i!.imageUrl!, score};
+            }
+          }
+          if (bestHit) {
+            resolvedPoster = bestHit.url.replace(/\._V1_.*\.jpg$/i, '._V1_UX500_.jpg');
+            break;
+          }
+        }
+      } catch {
+        // Fall through to JustWatch
+      }
+    }
+
+    // 3. JustWatch GraphQL poster lookup (US + IT fallback for European/Italian rarities)
+    if (!resolvedPoster && lookupTitle) {
+      try {
+        const cleanQuery = extractTitleVariants(lookupTitle)[0] || lookupTitle;
+        for (const region of ['US', 'IT']) {
+          const nodes = await queryJustWatchNodes(cleanQuery, region, 'en');
+          let bestPoster: string | null = null;
+          let bestScore = 45;
+          for (const node of nodes) {
+            if (!node.content?.posterUrl) continue;
+            const s = scoreJustWatchNode(node, lookupTitle, year);
+            if (s > bestScore) {
+              bestScore = s;
+              bestPoster = `https://images.justwatch.com${node.content.posterUrl
+                .replace('{profile}', 's592')
+                .replace('{format}', 'jpg')}`;
+            }
+          }
+          if (bestPoster) {
+            resolvedPoster = bestPoster;
+            break;
+          }
+        }
+      } catch {
+        // Ignore
+      }
+    }
+
+    wikiPosterCache.set(cacheKey, {
+      posterUrl: resolvedPoster,
+      expiresAt: Date.now() + (resolvedPoster ? WIKI_POSTER_TTL_MS : 30 * 60 * 1000),
+    });
+    return res.json({posterUrl: resolvedPoster});
   });
 
   // Live Amazon physical-media ASIN resolver for non-catalog (TMDB discover) movies
@@ -1003,7 +1102,12 @@ async function startServer() {
         };
       }
 
-      const runJwSlice = async (genreCode: string, offset: number, first = 100) => {
+      const runJwSlice = async (
+        genreCode: string,
+        offset: number,
+        first = 100,
+        storefrontCountry = 'US',
+      ) => {
         const filter: Record<string, unknown> = {
           objectTypes: ['MOVIE'],
           releaseYear: yearRange,
@@ -1022,7 +1126,7 @@ async function startServer() {
           body: JSON.stringify({
             query: JW_CATALOG_QUERY,
             variables: {
-              country: 'US',
+              country: storefrontCountry,
               language: 'en',
               first,
               after,
@@ -1041,14 +1145,41 @@ async function startServer() {
         };
       };
 
-      // Step 1: Query initial 100-item slices per selected genre in parallel
-      const initialBatches = await Promise.all(
-        jwGenresToQuery.map((code) =>
-          runJwSlice(code, 0, 100).catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
-        ),
-      );
+      // Query US storefront PLUS relevant regional storefronts (e.g. IT, GB, FR, DE, JP)
+      // because many European/Italian/Asian cult gems exist in regional catalogs but not US top-100.
+      const extraStorefronts =
+        origin === 'italy'
+          ? ['IT']
+          : origin === 'europe'
+            ? ['GB', 'FR', 'DE']
+            : origin === 'asia'
+              ? ['JP']
+              : origin === 'any'
+                ? ['IT', 'GB']
+                : [];
 
-      // Step 2: For any genre with >100 titles, pull non-overlapping deep slices in parallel
+      // Step 1: Query initial 100-item slices on US + regional storefronts in parallel
+      const [initialBatches, regionalBatches] = await Promise.all([
+        Promise.all(
+          jwGenresToQuery.map((code) =>
+            runJwSlice(code, 0, 100, 'US').catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
+          ),
+        ),
+        extraStorefronts.length > 0
+          ? Promise.all(
+              jwGenresToQuery.slice(0, 4).flatMap((code) =>
+                extraStorefronts.map((storefront) =>
+                  runJwSlice(code, 0, 100, storefront).catch(() => ({
+                    totalCount: 0,
+                    edges: [] as JwCatalogEdge[],
+                  })),
+                ),
+              ),
+            )
+          : Promise.resolve([]),
+      ]);
+
+      // Step 2: For any genre with >100 titles on US storefront, pull non-overlapping deep slices in parallel
       const deepPromises: Array<Promise<{totalCount: number; edges: JwCatalogEdge[]}>> = [];
       initialBatches.forEach((batch, idx) => {
         const code = jwGenresToQuery[idx];
@@ -1056,17 +1187,15 @@ async function startServer() {
         if (total <= 100) return;
 
         if (total <= 300) {
-          // Small/medium catalogs (e.g. 1970s Italy Horror = 203): fetch 100% of remaining titles cleanly
           deepPromises.push(
-            runJwSlice(code, 100, 100).catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
+            runJwSlice(code, 100, 100, 'US').catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
           );
           if (total > 200) {
             deepPromises.push(
-              runJwSlice(code, 200, 100).catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
+              runJwSlice(code, 200, 100, 'US').catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
             );
           }
         } else {
-          // Massive catalogs (400–4,000+): sample 3 deep 100-item strata shifted by popularity & shuffleSeed
           const maxSafe = Math.max(100, total - 100);
           const baseTier =
             popularity === 'rare-international'
@@ -1074,7 +1203,7 @@ async function startServer() {
               : popularity === 'forgotten-midnight'
                 ? 0.2
                 : 0.14;
-          const jitter = ((shuffleSeed * 37 + idx * 29) % 100) / 800; // up to +0.125 rotation
+          const jitter = ((shuffleSeed * 37 + idx * 29) % 100) / 800;
           const ratios = [
             Math.min(0.88, baseTier + jitter),
             Math.min(0.9, baseTier + 0.28 + jitter * 0.7),
@@ -1086,7 +1215,7 @@ async function startServer() {
             if (chosenOffsets.every((prev) => Math.abs(prev - candidate) >= 95)) {
               chosenOffsets.push(candidate);
               deepPromises.push(
-                runJwSlice(code, candidate, 100).catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
+                runJwSlice(code, candidate, 100, 'US').catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
               );
             }
           }
@@ -1094,7 +1223,7 @@ async function startServer() {
       });
 
       const deepBatches = deepPromises.length > 0 ? await Promise.all(deepPromises) : [];
-      const allEdges = [...initialBatches, ...deepBatches].flatMap((b) => b.edges);
+      const allEdges = [...initialBatches, ...regionalBatches, ...deepBatches].flatMap((b) => b.edges);
 
       const seenJwKeys = new Set<string>();
       const collected: Array<{

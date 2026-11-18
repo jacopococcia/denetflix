@@ -27,7 +27,7 @@ export interface ServerDiscoverItem {
 export interface LiveCatalogDiscoveryResult {
   movies: Movie[];
   liveCatalogUsed: boolean;
-  sources: Array<'justwatch' | 'tmdb' | 'wikidata'>;
+  sources: Array<'justwatch' | 'tmdb' | 'wikidata' | 'internet-archive'>;
   message?: string;
 }
 
@@ -462,11 +462,196 @@ LIMIT 160`;
   return Array.from(byId.values());
 }
 
+const IA_SUBJECT_GENRE_RULES: Array<{pattern: RegExp; genre: MovieGenre}> = [
+  {pattern: /\b(horror|vampire|zombie|slasher|witch|occult|monster|ghoul|macabre)\b/i, genre: 'Horror'},
+  {pattern: /\b(sci[\s-]?fi|science fiction|space|alien|robot|cyborg|future|planet)\b/i, genre: 'Science fiction'},
+  {pattern: /\b(thriller|suspense|giallo)\b/i, genre: 'Thriller'},
+  {pattern: /\b(mystery|detective|whodunit)\b/i, genre: 'Mystery'},
+  {pattern: /\b(crime|noir|gangster|mafia|heist|police)\b/i, genre: 'Crime'},
+  {pattern: /\b(comedy|humor|satire|parody|farce|slapstick)\b/i, genre: 'Comedy'},
+  {pattern: /\b(action|martial arts|kung fu|adventure|western)\b/i, genre: 'Action'},
+  {pattern: /\b(adventure|swashbuckler|expedition)\b/i, genre: 'Adventure'},
+  {pattern: /\b(fantasy|sword|sorcery|magic|mythology)\b/i, genre: 'Fantasy'},
+  {pattern: /\b(war|military|world war|vietnam|combat)\b/i, genre: 'War'},
+  {pattern: /\b(musical|music|concert|opera)\b/i, genre: 'Musical'},
+  {pattern: /\b(romance|romantic|love story)\b/i, genre: 'Romance'},
+  {pattern: /\b(family|children|kids|animation)\b/i, genre: 'Family'},
+];
+
+const GENRE_TO_IA_QUERY: Record<MovieGenre, string> = {
+  Horror: '(horror OR vampire OR zombie OR giallo)',
+  'Science fiction': '("science fiction" OR "sci-fi" OR alien OR space)',
+  Thriller: '(thriller OR suspense)',
+  Mystery: '(mystery OR detective)',
+  Crime: '(crime OR noir OR gangster OR heist)',
+  Comedy: '(comedy OR satire)',
+  Action: '(action OR "martial arts" OR western)',
+  Adventure: '(adventure)',
+  Fantasy: '(fantasy)',
+  War: '(war OR military)',
+  Musical: '(musical)',
+  Romance: '(romance)',
+  Family: '(family OR children)',
+};
+
+/**
+ * Queries Internet Archive's open feature_films catalog (1960–1999, CORS-enabled)
+ * when origin is open ('any'), providing verified free-to-stream titles and poster thumbnails.
+ */
+export async function fetchMoviesFromInternetArchive(
+  preferences: UserPreferences,
+  callerSignal?: AbortSignal,
+): Promise<Movie[]> {
+  if (preferences.origin !== 'any') {
+    return [];
+  }
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return [];
+  }
+
+  const yearBounds =
+    preferences.decade === '1960s'
+      ? {min: 1960, max: 1969}
+      : preferences.decade === '1970s'
+        ? {min: 1970, max: 1979}
+        : preferences.decade === '1980s'
+          ? {min: 1980, max: 1989}
+          : preferences.decade === '1990s'
+            ? {min: 1990, max: 1999}
+            : {min: 1960, max: 1999};
+
+  const targetGenres = preferences.genres.slice(0, 3);
+  const genreClause =
+    targetGenres.length > 0
+      ? ` AND subject:(${targetGenres.map((g) => GENRE_TO_IA_QUERY[g]).join(' OR ')})`
+      : '';
+
+  const query = `collection:feature_films AND mediatype:movies AND year:[${yearBounds.min} TO ${yearBounds.max}]${genreClause}`;
+  const url =
+    `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}` +
+    '&fl[]=identifier,title,year,subject,description,creator' +
+    '&sort[]=downloads+desc&rows=80&output=json';
+
+  const timeout = createTimeoutSignal(callerSignal, 5500);
+  try {
+    const res = await fetch(url, {signal: timeout.signal});
+    if (!res.ok) return [];
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) return [];
+    const json = (await res.json()) as {
+      response?: {
+        docs?: Array<{
+          identifier?: string;
+          title?: string;
+          year?: number | string;
+          subject?: string | string[];
+          description?: string | string[];
+          creator?: string | string[];
+        }>;
+      };
+    };
+
+    const output: Movie[] = [];
+    const seenTitleYear = new Set<string>();
+
+    for (const doc of json.response?.docs || []) {
+      const id = doc.identifier?.trim();
+      const rawTitle = doc.title?.trim();
+      const parsedYear =
+        typeof doc.year === 'number'
+          ? doc.year
+          : Number.parseInt(String(doc.year || ''), 10);
+
+      if (!id || !rawTitle || !Number.isFinite(parsedYear) || parsedYear < 1960 || parsedYear > 1999) {
+        continue;
+      }
+      if (/\b(trailer|teaser|promo|commercial|rifftrax|mst3k|newsreel|episode|part \d+ of)\b/i.test(rawTitle)) {
+        continue;
+      }
+
+      const cleanTitle = rawTitle.replace(/\s*\(\d{4}\)\s*$/g, '').trim();
+      const dedupeKey = `${cleanTitle.toLowerCase()}::${parsedYear}`;
+      if (seenTitleYear.has(dedupeKey)) continue;
+      seenTitleYear.add(dedupeKey);
+
+      const subjectText = Array.isArray(doc.subject) ? doc.subject.join(' ') : doc.subject || '';
+      const rawDesc = Array.isArray(doc.description) ? doc.description[0] || '' : doc.description || '';
+      const cleanDesc = rawDesc.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const combinedText = `${subjectText} ${cleanDesc}`;
+
+      const genres: MovieGenre[] = [];
+      for (const rule of IA_SUBJECT_GENRE_RULES) {
+        if (rule.pattern.test(combinedText) && !genres.includes(rule.genre)) {
+          genres.push(rule.genre);
+        }
+      }
+      if (genres.length === 0) {
+        if (preferences.genres.length > 0) {
+          genres.push(preferences.genres[0]);
+        } else {
+          continue;
+        }
+      }
+
+      const creator = Array.isArray(doc.creator) ? doc.creator[0] : doc.creator;
+      const director = creator?.trim() || 'Archive Director';
+      const decade = getDecadeBucket(parsedYear);
+      const synopsis =
+        cleanDesc.length >= 24
+          ? cleanDesc.slice(0, 260) + (cleanDesc.length > 260 ? '…' : '')
+          : `${cleanTitle} (${parsedYear}) — preserved ${decade} feature film from the Internet Archive vault.`;
+
+      const traits = inferTraitsFromGenres(genres, null, 700, 'en', synopsis);
+
+      const iaDraft: Movie = {
+        id: `ia-${id.replace(/[^a-zA-Z0-9_-]/g, '')}`,
+        archiveOrgId: id,
+        title: cleanTitle,
+        year: parsedYear,
+        decade,
+        origin: 'international',
+        countryLabel: 'International Vault',
+        director,
+        runtimeMinutes: null,
+        genres,
+        synopsis,
+        posterUrl: `https://archive.org/services/img/${encodeURIComponent(id)}`,
+        posterSource: 'fallback',
+        popularityTier: 'forgotten-midnight',
+        moods: traits.moods,
+        contexts: traits.contexts,
+        attentionLevels: traits.attentionLevels,
+        hasSadEnding: false,
+        isNonEnglishPrimary: false,
+        defaultPros: [
+          `Preserved ${decade} cult print streaming free on Internet Archive`,
+          `Direct from the open ${genres[0].toLowerCase()} archive without paywalls`,
+          `Verified ${parsedYear} feature release with public-vault artwork`,
+        ],
+        defaultCon: '',
+        defaultMatchReason: `Free-to-stream ${decade} ${genres[0].toLowerCase()} deep cut from Internet Archive.`,
+        isDemoData: false,
+      };
+      iaDraft.defaultCon = buildMovieSpecificPainPoint(iaDraft);
+      output.push(iaDraft);
+    }
+
+    return output;
+  } catch (error) {
+    if ((error as Error)?.name === 'AbortError' && callerSignal?.aborted) {
+      throw error;
+    }
+    return [];
+  } finally {
+    timeout.cleanup();
+  }
+}
+
 /**
  * Discovers a large, diverse pool of verified 1960–1999 films from:
- * 1. Keyless backend `/api/discover` (JustWatch GraphQL multi-genre deep-offset explorer)
+ * 1. Keyless backend `/api/discover` (JustWatch GraphQL multi-storefront deep explorer)
  * 2. TMDB `/api/tmdb/discover` or `VITE_TMDB_API_KEY` (when configured)
- * 3. Direct browser Wikidata SPARQL fallback (for static GitHub Pages without Express backend)
+ * 3. Direct browser Wikidata SPARQL + Internet Archive `feature_films` (CORS-friendly for static hosting & niche queries)
  */
 export async function discoverLiveCatalog(
   preferences: UserPreferences,
@@ -487,7 +672,7 @@ export async function discoverLiveCatalog(
   const apiBase = getApiBaseUrl();
 
   const fetchServerJustWatch = async (): Promise<Movie[]> => {
-    const timeout = createTimeoutSignal(callerSignal, 5500);
+    const timeout = createTimeoutSignal(callerSignal, 6000);
     try {
       const res = await fetch(`${apiBase}/api/discover`, {
         method: 'POST',
@@ -530,13 +715,20 @@ export async function discoverLiveCatalog(
 
   let combined = [...jwMovies, ...tmdbResult.movies];
 
-  // Supplement with CORS-friendly Wikidata SPARQL whenever server discovery isn't available (e.g. static GitHub Pages)
-  // OR when narrow filter combinations yielded fewer than 30 live candidates.
-  if (combined.length < 30) {
-    const wdMovies = await fetchMoviesFromWikidata(preferences, shuffleSeed, callerSignal);
+  // Supplement with CORS-friendly Wikidata SPARQL + Internet Archive whenever static hosting is active
+  // OR when narrow filter combinations yielded fewer than 100 live candidates.
+  if (combined.length < 100) {
+    const [wdMovies, iaMovies] = await Promise.all([
+      fetchMoviesFromWikidata(preferences, shuffleSeed, callerSignal),
+      fetchMoviesFromInternetArchive(preferences, callerSignal),
+    ]);
     if (wdMovies.length > 0) {
       sources.push('wikidata');
       combined = [...combined, ...wdMovies];
+    }
+    if (iaMovies.length > 0) {
+      sources.push('internet-archive');
+      combined = [...combined, ...iaMovies];
     }
   }
 

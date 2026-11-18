@@ -127,11 +127,17 @@ async function resolveMediaAndAvailabilityForBatch(
         if (movie.posterUrl) {
           return {posterUrl: movie.posterUrl, extract: null as string | null};
         }
+        const meta = {
+          title: movie.title,
+          year: movie.year,
+          archiveOrgId: movie.archiveOrgId,
+          origin: movie.origin,
+        };
         try {
           if (movie.id.startsWith('wd-') && movie.wikiSlug) {
-            return await resolveWikipediaSummary(movie.wikiSlug, signal);
+            return await resolveWikipediaSummary(movie.wikiSlug, signal, meta);
           }
-          const url = await resolveFallbackPoster(movie.wikiSlug, signal);
+          const url = await resolveFallbackPoster(movie.wikiSlug, signal, meta);
           return {posterUrl: url, extract: null as string | null};
         } catch (error) {
           if ((error as Error)?.name === 'AbortError' && signal?.aborted) throw error;

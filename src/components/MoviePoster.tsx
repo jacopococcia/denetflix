@@ -1,5 +1,5 @@
 import {Film} from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import type {Movie} from '../types/movie';
 
 interface MoviePosterProps {
@@ -38,6 +38,11 @@ const DECADE_POP_STYLES: Record<
 
 export function MoviePoster({movie}: MoviePosterProps) {
   const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [movie.posterUrl]);
+
   const showImage = Boolean(movie.posterUrl) && !imageError;
   const style = DECADE_POP_STYLES[movie.decade];
 
@@ -45,6 +50,7 @@ export function MoviePoster({movie}: MoviePosterProps) {
     return (
       <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl border border-white/15 bg-[#0B0D14]">
         <img
+          key={movie.posterUrl}
           src={movie.posterUrl}
           alt={`${movie.title} (${movie.year}) movie poster`}
           loading="lazy"
