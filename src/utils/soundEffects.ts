@@ -182,3 +182,42 @@ export function playPageFlip(): void {
     // Non-critical
   }
 }
+
+/** Playful popcorn bucket popup bloop + crispy kernel pops when movie results land */
+export function playPopcornPop(): void {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    // Bouncy cartoon popup bloop
+    scheduleTone(ctx, {
+      freqStart: 270,
+      freqEnd: 640,
+      durationSec: 0.13,
+      delaySec: 0.02,
+      gainPeak: 0.06,
+      type: 'triangle',
+    });
+
+    // Little crispy popcorn kernel pops timed to the bucket bounces
+    const kernelPops = [
+      {delaySec: 0.18, freqStart: 540, freqEnd: 880},
+      {delaySec: 0.34, freqStart: 640, freqEnd: 1020},
+      {delaySec: 0.54, freqStart: 480, freqEnd: 790},
+      {delaySec: 0.78, freqStart: 690, freqEnd: 1060},
+      {delaySec: 1.05, freqStart: 560, freqEnd: 910},
+    ];
+    for (const pop of kernelPops) {
+      scheduleTone(ctx, {
+        freqStart: pop.freqStart,
+        freqEnd: pop.freqEnd,
+        durationSec: 0.055,
+        delaySec: pop.delaySec,
+        gainPeak: 0.045,
+        type: 'sine',
+      });
+    }
+  } catch {
+    // Non-critical
+  }
+}

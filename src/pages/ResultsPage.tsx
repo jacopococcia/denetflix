@@ -3,6 +3,7 @@ import {useEffect, useRef, useState} from 'react';
 import {Button} from '../components/Button';
 import {ErrorBanner} from '../components/ErrorBanner';
 import {MovieCard} from '../components/MovieCard';
+import {PopcornPopup} from '../components/PopcornPopup';
 import {SoundToggle} from '../components/SoundToggle';
 import {enrichRecommendationSlice} from '../services/recommendationService';
 import type {MovieRecommendation, RecommendationBundle} from '../types/movie';
@@ -52,6 +53,14 @@ export function ResultsPage({
   const [currentPage, setCurrentPage] = useState(1);
   const [items, setItems] = useState<MovieRecommendation[]>(bundle.recommendations);
   const [enrichingPage, setEnrichingPage] = useState(false);
+
+  const bundleCounterRef = useRef(0);
+  const lastBundleRef = useRef<RecommendationBundle | null>(null);
+  if (lastBundleRef.current !== bundle) {
+    lastBundleRef.current = bundle;
+    bundleCounterRef.current += 1;
+  }
+  const popcornTriggerKey = `pop-${bundleCounterRef.current}`;
 
   const enrichedPagesRef = useRef<Set<number>>(new Set([1]));
   const itemsRef = useRef<MovieRecommendation[]>(bundle.recommendations);
@@ -343,15 +352,17 @@ export function ResultsPage({
             Tweak one or two answers or spin up a fresh retro search in seconds.
           </p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <Button variant="secondary" onClick={onModifyAnswers}>
-            Change my answers
-          </Button>
-          <Button variant="primary" onClick={onStartOver}>
-            Start over
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button variant="secondary" onClick={onModifyAnswers}>
+              Change my answers
+            </Button>
+            <Button variant="primary" onClick={onStartOver}>
+              Start over
+            </Button>
+          </div>
         </div>
-      </div>
-    </section>
+
+        {totalResults > 0 ? <PopcornPopup triggerKey={popcornTriggerKey} /> : null}
+      </section>
   );
 }
