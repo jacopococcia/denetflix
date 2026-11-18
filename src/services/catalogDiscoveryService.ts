@@ -1,5 +1,6 @@
 import type {Movie} from '../types/movie';
 import type {MovieGenre, UserPreferences} from '../types/quiz';
+import {buildMovieSpecificPainPoint} from '../utils/movieInsights';
 import {
   createTimeoutSignal,
   fetchMoviesFromTmdb,
@@ -177,8 +178,11 @@ export function normalizeJustWatchCatalogMovie(item: ServerDiscoverItem): Movie 
 
   const decade = getDecadeBucket(item.year);
   const director = item.director?.trim() || 'Director uncredited';
+  const synopsis =
+    item.overview?.trim() ||
+    `An underseen ${decade} ${originInfo.countryLabel} ${mappedGenres[0].toLowerCase()} feature directed by ${director}.`;
 
-  return {
+  const draftMovie: Movie = {
     id: item.id,
     justwatchId: item.justwatchId,
     tmdbId: item.tmdbId,
@@ -190,9 +194,7 @@ export function normalizeJustWatchCatalogMovie(item: ServerDiscoverItem): Movie 
     director,
     runtimeMinutes: item.runtime,
     genres: mappedGenres,
-    synopsis:
-      item.overview?.trim() ||
-      `An underseen ${decade} ${originInfo.countryLabel} ${mappedGenres[0].toLowerCase()} feature directed by ${director}.`,
+    synopsis,
     posterUrl: item.posterUrl,
     posterSource: item.posterUrl ? 'tmdb' : 'fallback',
     popularityTier: traits.popularityTier,
@@ -208,13 +210,17 @@ export function normalizeJustWatchCatalogMovie(item: ServerDiscoverItem): Movie 
         ? `Mixes ${mappedGenres.slice(0, 2).join(' and ').toLowerCase()} outside the usual mainstream feed`
         : `Pure ${mappedGenres[0].toLowerCase()} discovery worth unearthing tonight`,
     ],
-    defaultCon:
-      item.runtime && item.runtime > 125
-        ? 'Plan for a full two-hour midnight commitment.'
-        : 'Genuine cult deep cut—unpolished edges are part of the charm.',
+    defaultCon: '',
     defaultMatchReason: `Rare ${decade} ${originInfo.countryLabel} pick matching your ${mappedGenres[0].toLowerCase()} parameters.`,
     isDemoData: false,
   };
+
+  draftMovie.defaultCon = buildMovieSpecificPainPoint(draftMovie, {
+    imdbScore: item.imdbScore,
+    imdbVotes: item.imdbVotes,
+  });
+
+  return draftMovie;
 }
 
 /**
@@ -358,7 +364,7 @@ OFFSET ${offset}`;
           originMeta.isNonEnglish ? 'foreign' : 'en',
         );
 
-        output.push({
+        const wdDraft: Movie = {
           id: `wd-${qid}`,
           wikiSlug,
           trailerYoutubeId,
@@ -385,10 +391,12 @@ OFFSET ${offset}`;
             `Matches your ${originMeta.countryLabel} era filter without mainstream bias`,
             `Verified ${year} theatrical/cult entry ready to stream or track down`,
           ],
-          defaultCon: 'Full plot notes and poster load live from archive records.',
+          defaultCon: '',
           defaultMatchReason: `Verified ${decade} ${originMeta.countryLabel} ${genre.toLowerCase()} discovery.`,
           isDemoData: false,
-        });
+        };
+        wdDraft.defaultCon = buildMovieSpecificPainPoint(wdDraft);
+        output.push(wdDraft);
       }
       return output;
     } catch (error) {

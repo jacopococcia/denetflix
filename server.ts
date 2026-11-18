@@ -1618,7 +1618,10 @@ async function startServer() {
               'You are the playful, friendly midnight-cinema host for Denetflix, celebrating rare, cult, Italian, American, and international hidden gems (1960–1999). ' +
               'Write warm, witty, approachable copy in English. Never use pretentious or academic film-critic jargon. ' +
               'STRICT FACTUAL RULE: You are given verified movie metadata. NEVER invent release years, directors, posters, streaming platforms, Amazon stock status, ratings, awards, or plot facts not supported by the input. ' +
-              'Return JSON with a short 1-2 sentence personalizedIntro and one entry per provided movieId with exactly 3 concise specific pros (each under 12 words), 1 honest lighthearted con (under 16 words), and 1 short matchReason (under 18 words).',
+              'Return JSON with a short 1-2 sentence personalizedIntro and one entry per provided movieId with: ' +
+              '3 concise specific pros (each under 12 words), ' +
+              '1 honest lighthearted con under 18 words describing a SPECIFIC weakness/quirk of THAT exact film (e.g. pacing drag, tonal whiplash, dated practical FX, stiff dubbing, bleak ending, or camp premise—never repeat generic phrases across movies), ' +
+              'and 1 short matchReason (under 18 words).',
             responseMimeType: 'application/json',
             responseSchema: {
               type: Type.OBJECT,
@@ -1648,7 +1651,7 @@ async function startServer() {
             },
           },
         }),
-        4500,
+        6500,
         'Gemini generateContent',
       );
 

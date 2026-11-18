@@ -1,3 +1,4 @@
+import {ExternalLink} from 'lucide-react';
 import {AMAZON_AFFILIATE_DISCLOSURE} from '../services/amazonService';
 import {SoundToggle} from './SoundToggle';
 
@@ -5,7 +6,15 @@ interface FooterProps {
   onOpenLegalModal: (topic: 'privacy' | 'terms') => void;
 }
 
+const FIRST_PUBLICATION_YEAR = 2026;
+
 export function Footer({onOpenLegalModal}: FooterProps) {
+  const currentYear = new Date().getFullYear();
+  const publicationYears =
+    currentYear > FIRST_PUBLICATION_YEAR
+      ? `${FIRST_PUBLICATION_YEAR}–${currentYear}`
+      : `${FIRST_PUBLICATION_YEAR}`;
+
   return (
     <footer
       id="privacy-disclosure"
@@ -62,6 +71,25 @@ export function Footer({onOpenLegalModal}: FooterProps) {
               </button>
             </div>
           </div>
+        </div>
+
+        <div className="mt-8 flex flex-col items-center justify-between gap-2 border-t border-white/10 pt-6 text-xs text-[#A8B1C7] sm:flex-row">
+          <p className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-center sm:justify-start sm:text-left">
+            <span>© {publicationYears}</span>
+            <a
+              href="https://www.jacopococcia.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-[44px] items-center gap-1 font-semibold text-[#F6F4EE] underline decoration-[#00D4FF]/60 underline-offset-4 transition-colors hover:text-[#00D4FF] hover:decoration-[#00D4FF]"
+            >
+              <span>Jacopo Coccia</span>
+              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+            </a>
+            <span>· Denetflix. All rights reserved.</span>
+          </p>
+          <p className="text-[#A8B1C7]/80">
+            Curated Genre &amp; Cult Cinema (1960–1999)
+          </p>
         </div>
       </div>
     </footer>

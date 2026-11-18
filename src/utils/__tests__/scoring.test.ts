@@ -492,4 +492,66 @@ describe('Denetflix rare-gem scoring and strict recommendation engine', () => {
     expect(staticFallback.fallbackLinks?.length).toBeGreaterThanOrEqual(3);
     expect(staticFallback.fallbackLinks?.some((l) => l.url.includes('justwatch'))).toBe(false);
   });
+
+  it('generates distinct movie-specific pain points ("The tiny catch") across discovered movies', async () => {
+    const {buildMovieSpecificPainPoint, selectUniqueMoviePainPoint} = await import('../movieInsights');
+
+    const movieA = normalizeJustWatchCatalogMovie({
+      id: 'jw-a',
+      title: 'Deep Red',
+      year: 1975,
+      runtime: 127,
+      overview: 'A pianist investigates a brutal psychic serial killer in Turin.',
+      productionCountries: ['IT'],
+      posterUrl: null,
+      genreCodes: ['hrr', 'trl'],
+      director: 'Dario Argento',
+      imdbVotes: 45000,
+      imdbScore: 7.5,
+    })!;
+
+    const movieB = normalizeJustWatchCatalogMovie({
+      id: 'jw-b',
+      title: 'The Great Alligator',
+      year: 1979,
+      runtime: 90,
+      overview: 'A giant crocodile terrorizes tourists near an island resort.',
+      productionCountries: ['IT'],
+      posterUrl: null,
+      genreCodes: ['hrr', 'act'],
+      director: 'Sergio Martino',
+      imdbVotes: 1600,
+      imdbScore: 5.1,
+    })!;
+
+    const movieC = normalizeJustWatchCatalogMovie({
+      id: 'jw-c',
+      title: 'Starcrash',
+      year: 1978,
+      runtime: 92,
+      overview: 'Outlaw smugglers battle an evil count across alien planets and spaceships.',
+      productionCountries: ['IT'],
+      posterUrl: null,
+      genreCodes: ['scf', 'act'],
+      director: 'Luigi Cozzi',
+      imdbVotes: 6000,
+      imdbScore: 4.8,
+    })!;
+
+    const catches = [
+      buildMovieSpecificPainPoint(movieA),
+      buildMovieSpecificPainPoint(movieB),
+      buildMovieSpecificPainPoint(movieC),
+    ];
+
+    expect(new Set(catches).size).toBe(3);
+    expect(movieA.defaultCon).not.toBe('Genuine cult deep cut—unpolished edges are part of the charm.');
+    expect(movieA.defaultCon).toContain('Deep Red');
+    expect(movieB.defaultCon).toContain('The Great Alligator');
+    expect(movieC.defaultCon).toContain('Starcrash');
+
+    const used = new Set<string>();
+    const chosen = [movieA, movieB, movieC].map((m) => selectUniqueMoviePainPoint(m, used));
+    expect(new Set(chosen).size).toBe(3);
+  });
 });

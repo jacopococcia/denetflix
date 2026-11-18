@@ -8,6 +8,7 @@ import type {
 } from '../types/movie';
 import type {QuizAnswersMap, UserPreferences} from '../types/quiz';
 import {summarizePreferences} from '../utils/formatters';
+import {selectUniqueMoviePainPoint} from '../utils/movieInsights';
 import {
   buildUserPreferences,
   diagnoseEmptyMatches,
@@ -22,6 +23,8 @@ import {
   fetchAvailabilityAndTrailer,
 } from './streamingService';
 import {createTimeoutSignal, getApiBaseUrl} from './tmdbService';
+
+const FALLBACK_MOVIE_IDS = new Set(FALLBACK_MOVIES.map((m) => m.id));
 
 function validateGeminiResponse(
   payload: unknown,
@@ -84,7 +87,7 @@ async function requestGeminiEnhancement(
     })),
   };
 
-  const timeout = createTimeoutSignal(callerSignal, 4500);
+  const timeout = createTimeoutSignal(callerSignal, 6800);
   try {
     const response = await fetch(`${apiBase}/api/gemini/recommend`, {
       method: 'POST',
@@ -93,7 +96,8 @@ async function requestGeminiEnhancement(
       signal: timeout.signal,
     });
 
-    if (!response.ok) {
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok || !contentType.includes('application/json')) {
       return null;
     }
 
@@ -260,11 +264,17 @@ export async function generateRecommendations(
     (geminiResult?.recommendations || []).map((item) => [item.movieId, item]),
   );
 
+  const usedCons = new Set<string>();
   const recommendations: MovieRecommendation[] = ranked.map((item, idx) => {
     const isPageOne = idx < firstPageMovies.length;
     const media = isPageOne ? resolvedMedia[idx] : null;
     const resolvedPoster = media?.posterUrl ?? item.movie.posterUrl;
     const resolvedExtract = media?.extract;
+
+    const updatedSynopsis =
+      resolvedExtract && item.movie.id.startsWith('wd-')
+        ? resolvedExtract
+        : item.movie.synopsis;
 
     const enrichedMovie: Movie = {
       ...item.movie,
@@ -274,11 +284,15 @@ export async function generateRecommendations(
           ? 'tmdb'
           : 'wikipedia'
         : item.movie.posterSource,
-      synopsis:
-        resolvedExtract && item.movie.id.startsWith('wd-')
-          ? resolvedExtract
-          : item.movie.synopsis,
+      synopsis: updatedSynopsis,
     };
+
+    const isCuratedVaultMovie = FALLBACK_MOVIE_IDS.has(item.movie.id);
+    if (!isCuratedVaultMovie) {
+      enrichedMovie.defaultCon = selectUniqueMoviePainPoint(enrichedMovie, usedCons);
+    } else {
+      usedCons.add(enrichedMovie.defaultCon);
+    }
 
     const aiCopy = geminiMap.get(item.movie.id);
     const liveData = isPageOne
@@ -295,11 +309,14 @@ export async function generateRecommendations(
           trailerTitle: null,
         };
 
+    const resolvedCon = aiCopy?.con?.trim() || enrichedMovie.defaultCon;
+    usedCons.add(resolvedCon);
+
     return {
       movie: enrichedMovie,
       relevanceScore: item.score,
       pros: aiCopy ? aiCopy.pros : item.movie.defaultPros,
-      con: aiCopy ? aiCopy.con : item.movie.defaultCon,
+      con: resolvedCon,
       matchReason: aiCopy ? aiCopy.matchReason : item.movie.defaultMatchReason,
       availability: liveData.availability,
       trailerYoutubeId: liveData.trailerYoutubeId,
@@ -355,27 +372,42 @@ export async function enrichRecommendationSlice(
   const [resolvedMedia, availabilityAndTrailers, resolvedAsins] =
     await resolveMediaAndAvailabilityForBatch(movies, countryCode, signal);
 
+  const usedCons = new Set<string>();
   return items.map((item, idx) => {
     const media = resolvedMedia[idx];
     const resolvedPoster = media?.posterUrl ?? item.movie.posterUrl;
     const resolvedExtract = media?.extract;
     const liveData = availabilityAndTrailers[idx];
     const resolvedAsin = resolvedAsins[idx] ?? item.physicalMedia.asin;
+
+    const updatedMovie: Movie = {
+      ...item.movie,
+      posterUrl: resolvedPoster,
+      posterSource: resolvedPoster
+        ? item.movie.posterSource === 'tmdb'
+          ? 'tmdb'
+          : 'wikipedia'
+        : item.movie.posterSource,
+      synopsis:
+        resolvedExtract && item.movie.id.startsWith('wd-')
+          ? resolvedExtract
+          : item.movie.synopsis,
+    };
+
+    const isCuratedVaultMovie = FALLBACK_MOVIE_IDS.has(item.movie.id);
+    const refreshedCon = isCuratedVaultMovie
+      ? item.con
+      : selectUniqueMoviePainPoint(updatedMovie, usedCons);
+    if (!isCuratedVaultMovie) {
+      updatedMovie.defaultCon = refreshedCon;
+    } else {
+      usedCons.add(refreshedCon);
+    }
+
     return {
       ...item,
-      movie: {
-        ...item.movie,
-        posterUrl: resolvedPoster,
-        posterSource: resolvedPoster
-          ? item.movie.posterSource === 'tmdb'
-            ? 'tmdb'
-            : 'wikipedia'
-          : item.movie.posterSource,
-        synopsis:
-          resolvedExtract && item.movie.id.startsWith('wd-')
-            ? resolvedExtract
-            : item.movie.synopsis,
-      },
+      movie: updatedMovie,
+      con: refreshedCon,
       availability: liveData.availability,
       trailerYoutubeId: liveData.trailerYoutubeId,
       trailerTitle: liveData.trailerTitle,

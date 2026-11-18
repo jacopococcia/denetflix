@@ -1,5 +1,6 @@
 import type {Movie} from '../types/movie';
 import type {AttentionPreference, MoodPreference, MovieGenre, PopularityPreference, UserPreferences, ViewingContext} from '../types/quiz';
+import {buildMovieSpecificPainPoint} from '../utils/movieInsights';
 
 export interface TmdbFetchResult {
   movies: Movie[];
@@ -343,7 +344,7 @@ export function normalizeTmdbMovieDetail(detail: TmdbMovieDetail): Movie | null 
     detail.original_language,
   );
 
-  return {
+  const tmdbDraft: Movie = {
     id: `tmdb-${detail.id}`,
     tmdbId: detail.id,
     title: detail.title,
@@ -370,13 +371,14 @@ export function normalizeTmdbMovieDetail(detail: TmdbMovieDetail): Movie | null 
         ? `Blends ${genres.slice(0, 2).join(' and ').toLowerCase()} with cult personality`
         : `Delivers pure ${genres[0].toLowerCase()} discovery`,
     ],
-    defaultCon:
-      runtimeMinutes && runtimeMinutes > 125
-        ? 'You will want a full snack refill for this deep cut.'
-        : 'Weirdly overlooked in its time—so expect rough retro edges.',
+    defaultCon: '',
     defaultMatchReason: `Rare ${getDecadeBucket(year)} ${originInfo.countryLabel} pick tailored to your ${genres[0].toLowerCase()} taste.`,
     isDemoData: false,
   };
+  tmdbDraft.defaultCon = buildMovieSpecificPainPoint(tmdbDraft, {
+    imdbVotes: detail.vote_count,
+  });
+  return tmdbDraft;
 }
 
 /**
