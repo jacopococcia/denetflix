@@ -32,7 +32,7 @@ export function HomePage({countryCode, onChangeCountry, onStartQuiz}: HomePagePr
             </h1>
 
             <p className="max-w-xl text-base leading-relaxed text-[#A8B1C7] sm:text-lg">
-              Mainstream feeds serve plastic clones. Answer 8 quick pop-quiz questions to unearth all matching hard-to-find American, Italian, and international cult, midnight, and gloriously trashy genre films, paginated 10 at a time.
+              Mainstream feeds serve plastic clones. Answer 5 quick pop-quiz questions to unearth all matching hard-to-find American, Italian, and international cult, midnight, and gloriously trashy genre films, paginated 10 at a time.
             </p>
           </div>
 
@@ -63,7 +63,7 @@ export function HomePage({countryCode, onChangeCountry, onStartQuiz}: HomePagePr
             </div>
 
             <p className="text-sm text-[#A8B1C7]">
-              8 Warhol-bright pop choices. Zero algorithmic clichés. Takes about 2 minutes.
+              5 Warhol-bright pop choices. Zero algorithmic clichés. Takes under a minute.
             </p>
           </div>
         </div>
@@ -110,7 +110,7 @@ export function HomePage({countryCode, onChangeCountry, onStartQuiz}: HomePagePr
             <p className="font-display text-sm font-bold text-[#FF1E8A] tabular-nums">01. Answer the quiz</p>
             <h3 className="font-display text-lg font-bold text-[#F6F4EE]">Pick your decade & mood</h3>
             <p className="text-sm leading-relaxed text-[#A8B1C7]">
-              Choose your era, genre craving, runtime energy, and deal-breakers using tactile Warhol-pop icons. No login needed.
+              Choose your era, genres, origin country, vibe, and deal-breakers using tactile Warhol-pop icons. No login needed.
             </p>
           </div>
 
@@ -149,7 +149,7 @@ export function HomePage({countryCode, onChangeCountry, onStartQuiz}: HomePagePr
 
           <div className="flex flex-col items-start gap-3 md:items-end">
             <Button variant="primary" onClick={onStartQuiz}>
-              <span>Start the 8-question quiz</span>
+              <span>Start the 5-question quiz</span>
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Button>
             <p className="text-xs text-[#A8B1C7]">

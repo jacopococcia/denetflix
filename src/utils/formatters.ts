@@ -74,13 +74,15 @@ export function summarizePreferences(preferences: UserPreferences): string {
     asia: 'Japanese & Asian cinema',
   };
 
-  const contextLabels: Record<UserPreferences['context'], string> = {
-    alone: 'a solo watch',
-    friends: 'movie night with friends',
-    'date-night': 'date night',
-    family: 'family viewing',
-    'late-night': 'a late-night guilty pleasure',
+  const moodLabels: Record<UserPreferences['mood'], string> = {
+    'fun-light': 'a fun, light vibe',
+    exciting: 'high-energy thrills',
+    nostalgic: 'warm analog nostalgia',
+    'weird-good': 'gloriously weird cult oddities',
+    'dark-entertaining': 'dark, entertaining twists',
+    'feel-good': 'feel-good heart',
+    unforgettable: 'unforgettable deep cuts',
   };
 
-  return `Dialed in for ${originLabels[preferences.origin]} from ${decadeText}, leaning toward ${genreText}, tailored for ${contextLabels[preferences.context]}.`;
+  return `Dialed in for ${originLabels[preferences.origin]} from ${decadeText}, leaning toward ${genreText}, prioritizing ${moodLabels[preferences.mood]}.`;
 }

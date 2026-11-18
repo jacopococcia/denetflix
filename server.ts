@@ -988,7 +988,7 @@ async function startServer() {
       const requestedGenres = Array.isArray(preferences?.genres) ? preferences.genres : [];
       const popularity = preferences?.popularity || 'cult-favorites';
       const exclusions = Array.isArray(preferences?.exclusions) ? preferences.exclusions : [];
-      const avoidHorror = exclusions.includes('avoid-horror') || preferences?.context === 'family';
+      const avoidHorror = exclusions.includes('avoid-horror');
       const avoidRomance = exclusions.includes('avoid-romance');
       const avoidLong = exclusions.includes('avoid-long');
       const avoidSubtitles = exclusions.includes('avoid-subtitles');
@@ -1269,14 +1269,7 @@ async function startServer() {
 
         // Filter out mainstream household megahits while preserving rich cult/sleeper catalog
         const imdbVotes = typeof c.scoring?.imdbVotes === 'number' ? c.scoring.imdbVotes : 0;
-        const maxAllowedVotes =
-          origin === 'italy' || origin === 'asia' || origin === 'europe'
-            ? 190000
-            : popularity === 'rare-international'
-              ? 95000
-              : popularity === 'forgotten-midnight'
-                ? 120000
-                : 165000;
+        const maxAllowedVotes = 200000;
         if (imdbVotes > maxAllowedVotes) continue;
 
         const dedupeKey = `${c.title.toLowerCase().trim()}::${year}`;
@@ -1351,7 +1344,7 @@ async function startServer() {
       const range = getDecadeDates(preferences?.decade || 'surprise');
       const exclusions = Array.isArray(preferences?.exclusions) ? preferences.exclusions : [];
       const withoutGenreIds: number[] = [];
-      if (exclusions.includes('avoid-horror') || preferences?.context === 'family') {
+      if (exclusions.includes('avoid-horror')) {
         withoutGenreIds.push(27);
       }
       if (exclusions.includes('avoid-romance')) {
@@ -1371,9 +1364,9 @@ async function startServer() {
           language: 'en-US',
           'primary_release_date.gte': range.gte,
           'primary_release_date.lte': range.lte,
-          'vote_count.gte': relaxed ? '10' : preferences?.popularity === 'forgotten-midnight' ? '30' : '60',
-          'vote_count.lte': relaxed ? '2400' : preferences?.popularity === 'cult-favorites' ? '1800' : '1200',
-          'vote_average.gte': relaxed ? '5.5' : '6.2',
+          'vote_count.gte': relaxed ? '5' : '15',
+          'vote_count.lte': relaxed ? '4000' : '2500',
+          'vote_average.gte': relaxed ? '5.0' : '5.6',
           sort_by: relaxed ? 'popularity.desc' : 'vote_average.desc',
           page: String(pageNum),
         });

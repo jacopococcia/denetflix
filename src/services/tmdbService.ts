@@ -478,7 +478,7 @@ export async function fetchMoviesFromTmdb(
   try {
     const range = mapDecadeRange(preferences.decade);
     const withoutGenreIds: number[] = [];
-    if (preferences.exclusions.includes('avoid-horror') || preferences.context === 'family') {
+    if (preferences.exclusions.includes('avoid-horror')) {
       withoutGenreIds.push(27);
     }
     if (preferences.exclusions.includes('avoid-romance')) {
@@ -493,9 +493,9 @@ export async function fetchMoviesFromTmdb(
         language: 'en-US',
         'primary_release_date.gte': range.gte,
         'primary_release_date.lte': range.lte,
-        'vote_count.gte': relaxed ? '10' : preferences.popularity === 'forgotten-midnight' ? '30' : '60',
-        'vote_count.lte': relaxed ? '2400' : preferences.popularity === 'cult-favorites' ? '1800' : '1200',
-        'vote_average.gte': relaxed ? '5.5' : '6.2',
+        'vote_count.gte': relaxed ? '5' : '15',
+        'vote_count.lte': relaxed ? '4000' : '2500',
+        'vote_average.gte': relaxed ? '5.0' : '5.6',
         sort_by: relaxed ? 'popularity.desc' : 'vote_average.desc',
         page: '1',
       });

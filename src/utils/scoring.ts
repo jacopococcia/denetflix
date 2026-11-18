@@ -37,9 +37,10 @@ export function buildUserPreferences(
  * - Production country / origin when specified
  * - Exact decade when specified (not 'surprise')
  * - At least one matching genre when genres are selected
- * - Active exclusions (avoid-horror, avoid-romance, avoid-long, avoid-sad-endings, avoid-subtitles)
- * - Family-friendly guard when viewing context is 'family'
- * - Mood alignment with the user's selected taste/vibe
+ * - Active deal-breaker exclusions (avoid-horror, avoid-romance, avoid-long, avoid-sad-endings, avoid-subtitles)
+ *
+ * Note: Mood/vibe is applied as a strong ranking priority in scoreMovie rather than a hard
+ * cutoff so valid films in the selected decade, origin, and genres are never hidden.
  */
 export function hasExclusionConflict(movie: Movie, preferences: UserPreferences): boolean {
   if (movie.year < MIN_RETRO_YEAR || movie.year > MAX_RETRO_YEAR) {
@@ -64,12 +65,7 @@ export function hasExclusionConflict(movie: Movie, preferences: UserPreferences)
     return true;
   }
 
-  // Strict mood/taste alignment
-  if (!movie.moods.includes(preferences.mood)) {
-    return true;
-  }
-
-  // Exclusions
+  // Explicit user deal-breaker exclusions
   const activeExclusions = preferences.exclusions.filter((ex) => ex !== 'no-preference');
   for (const exclusion of activeExclusions) {
     const raw = exclusion as string;
@@ -84,14 +80,6 @@ export function hasExclusionConflict(movie: Movie, preferences: UserPreferences)
     }
     if (raw === 'avoid-sad-endings' && movie.hasSadEnding) return true;
     if (raw === 'avoid-subtitles' && movie.isNonEnglishPrimary) return true;
-  }
-
-  // Family safety guard
-  if (
-    preferences.context === 'family' &&
-    (movie.genres.includes('Horror') || !movie.contexts.includes('family'))
-  ) {
-    return true;
   }
 
   return false;
@@ -127,31 +115,14 @@ export function scoreMovie(movie: Movie, preferences: UserPreferences): number {
     score += 10;
   }
 
-  // 4. Mood / taste bonus
+  // 4. Strong mood / vibe priority (surfaces matching vibes first without discarding catalog depth)
   if (movie.moods.includes(preferences.mood)) {
-    score += 25;
+    score += 45;
   }
 
-  // 5. Viewing context bonus
-  if (movie.contexts.includes(preferences.context)) {
-    score += 20;
-  }
-
-  // 6. Attention / runtime alignment
-  const runtime = movie.runtimeMinutes;
-  if (movie.attentionLevels.includes(preferences.attention)) {
-    score += 15;
-  }
-  if (preferences.attention === 'short-entertaining' && runtime !== null) {
-    if (runtime <= 102) score += 12;
-    else if (runtime > 115) score -= 25;
-  } else if (preferences.attention === 'longer-movie' && runtime !== null) {
-    if (runtime >= 115) score += 15;
-  }
-
-  // 7. Obscurity / cult tier match
+  // 5. Subtle tie-breaker alignment
   if (movie.popularityTier === preferences.popularity) {
-    score += 12;
+    score += 5;
   }
 
   return score;
@@ -172,8 +143,8 @@ function seededHash(value: string, seed: number): number {
 
 /**
  * Selects all diverse retro gems (or up to an optional explicit limit) that strictly obey
- * all user preferences (production nation, decade, genres, mood/taste, viewing context, and exclusions).
- * Never pads results with off-country, off-genre, or conflicting films.
+ * production nation, decade, genres, and explicit deal-breaker exclusions, while ranking
+ * mood/vibe matches at the top. Never pads results with off-country, off-genre, or conflicting films.
  */
 export function rankAndSelectMovies(
   candidates: Movie[],
@@ -339,17 +310,6 @@ export function diagnoseEmptyMatches(
     };
   }
 
-  if (
-    preferences.genres.length === 1 &&
-    preferences.genres[0] === 'Horror' &&
-    preferences.context === 'family'
-  ) {
-    return {
-      reason: 'Horror movies are excluded when Family viewing is selected.',
-      suggestions: ['Switch viewing context away from Family viewing, or choose another genre.'],
-    };
-  }
-
   const suggestions: string[] = [];
 
   if (preferences.decade !== 'surprise') {
@@ -365,14 +325,6 @@ export function diagnoseEmptyMatches(
     const count = rankAndSelectMovies(candidates, relaxed).length;
     if (count > 0) {
       suggestions.push(`Opening production country to Anywhere unlocks ${count} matching ${count === 1 ? 'film' : 'films'}.`);
-    }
-  }
-
-  if (preferences.context === 'family') {
-    const relaxed = {...preferences, context: 'friends' as const};
-    const count = rankAndSelectMovies(candidates, relaxed).length;
-    if (count > 0) {
-      suggestions.push(`Switching viewing context off Family viewing unlocks ${count} matching ${count === 1 ? 'film' : 'films'}.`);
     }
   }
 
@@ -392,8 +344,6 @@ export function diagnoseEmptyMatches(
   if (preferences.genres.length > 0) parts.push(preferences.genres.join(' / '));
   if (preferences.decade !== 'surprise') parts.push(preferences.decade);
   if (preferences.origin !== 'any') parts.push(preferences.origin.toUpperCase());
-  parts.push(preferences.mood.replace(/-/g, ' '));
-  if (preferences.context === 'family') parts.push('family viewing');
   if (activeExclusions.length > 0) {
     parts.push(activeExclusions.map((e) => e.replace(/-/g, ' ')).join(', '));
   }

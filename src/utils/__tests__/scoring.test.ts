@@ -23,7 +23,7 @@ import {
 } from '../scoring';
 
 describe('Denetflix rare-gem scoring and strict recommendation engine', () => {
-  it('returns all matching rare gems without a 7-film cap and paginates by 10 per page', () => {
+  it('returns all 1960–1999 matches without dropping non-mood films and prioritizes matching moods first', () => {
     expect(RESULTS_PER_PAGE).toBe(10);
     const prefs = buildUserPreferences(
       {
@@ -36,9 +36,21 @@ describe('Denetflix rare-gem scoring and strict recommendation engine', () => {
       'US',
     );
     const results = rankAndSelectMovies(FALLBACK_MOVIES, prefs);
-    const expectedMatches = FALLBACK_MOVIES.filter((m) => m.moods.includes('dark-entertaining'));
-    expect(results.length).toBe(expectedMatches.length);
-    expect(results.length).toBeGreaterThan(RESULTS_PER_PAGE);
+    const moodMatchedCount = FALLBACK_MOVIES.filter((m) => m.moods.includes('dark-entertaining')).length;
+    expect(results.length).toBe(FALLBACK_MOVIES.length);
+    expect(results.length).toBeGreaterThan(moodMatchedCount);
+    expect(results.slice(0, RESULTS_PER_PAGE).every((r) => r.movie.moods.includes('dark-entertaining'))).toBe(true);
+  });
+
+  it('streamlines QUIZ_QUESTIONS to 5 essential steps without over-filtering questions', () => {
+    expect(QUIZ_QUESTIONS.map((q) => q.id)).toEqual([
+      'decade',
+      'genres',
+      'origin',
+      'mood',
+      'exclusions',
+    ]);
+    expect(QUIZ_QUESTIONS.map((q) => q.stepNumber)).toEqual([1, 2, 3, 4, 5]);
   });
 
   it('validates every movie in FALLBACK_MOVIES (genres, moods, decade window, unique IDs)', () => {
@@ -240,7 +252,7 @@ describe('Denetflix rare-gem scoring and strict recommendation engine', () => {
     expect(diag.reason.toLowerCase()).toContain('avoid horror');
   });
 
-  it('strictly enforces selected genres, decade, and mood without leaking off-match titles', () => {
+  it('strictly enforces selected genres, decade, and origin while ranking mood matches ahead of other vibes', () => {
     const prefs = buildUserPreferences(
       {
         ...DEFAULT_QUIZ_ANSWERS,
@@ -248,7 +260,6 @@ describe('Denetflix rare-gem scoring and strict recommendation engine', () => {
         decade: '1970s',
         genres: ['Horror'],
         mood: 'dark-entertaining',
-        context: 'late-night',
       },
       'IT',
     );
@@ -259,8 +270,24 @@ describe('Denetflix rare-gem scoring and strict recommendation engine', () => {
       expect(item.movie.origin).toBe('italy');
       expect(item.movie.decade).toBe('1970s');
       expect(item.movie.genres).toContain('Horror');
-      expect(item.movie.moods).toContain('dark-entertaining');
     }
+    expect(ranked[0].movie.moods).toContain('dark-entertaining');
+
+    // Even a less common Horror mood (fun-light) should preserve all 1970s Italian Horror matches instead of discarding them
+    const funLightHorror = rankAndSelectMovies(
+      FALLBACK_MOVIES,
+      buildUserPreferences(
+        {
+          ...DEFAULT_QUIZ_ANSWERS,
+          origin: 'italy',
+          decade: '1970s',
+          genres: ['Horror'],
+          mood: 'fun-light',
+        },
+        'IT',
+      ),
+    );
+    expect(funLightHorror.length).toBe(ranked.length);
   });
 
   it('rewards exact decade and genre matches for rare 1980s sci-fi comedies', () => {
