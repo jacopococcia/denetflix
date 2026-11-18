@@ -100,7 +100,7 @@ export function createTimeoutSignal(callerSignal: AbortSignal | undefined, timeo
     }
   }
 
-  const timer = window.setTimeout(() => {
+  const timer = globalThis.setTimeout(() => {
     didTimeout = true;
     controller.abort();
   }, timeoutMs);
@@ -109,7 +109,7 @@ export function createTimeoutSignal(callerSignal: AbortSignal | undefined, timeo
     signal: controller.signal,
     timedOut: () => didTimeout,
     cleanup: () => {
-      window.clearTimeout(timer);
+      globalThis.clearTimeout(timer);
       if (callerSignal) {
         callerSignal.removeEventListener('abort', onCallerAbort);
       }
@@ -192,6 +192,7 @@ export function inferTraitsFromGenres(
   runtimeMinutes: number | null,
   voteCount: number,
   originalLanguage: string | undefined,
+  overview?: string,
 ): {
   popularityTier: PopularityPreference;
   moods: MoodPreference[];
@@ -257,6 +258,9 @@ export function inferTraitsFromGenres(
     moods.add('exciting');
     moods.add('unforgettable');
     moods.add('nostalgic');
+    if (genres.includes('Mystery')) {
+      moods.add('weird-good');
+    }
   }
   if (genres.includes('Fantasy') || genres.includes('Science fiction')) {
     moods.add('weird-good');
@@ -266,6 +270,16 @@ export function inferTraitsFromGenres(
     if (!isPureHorror) {
       moods.add('fun-light');
       moods.add('feel-good');
+    }
+  }
+  if (overview) {
+    const ov = overview.toLowerCase();
+    if (/\b(comedy|comedic|satire|spoof|parody|hilarious|zany|campy|camp|misfit|heist|caper|kung fu|martial arts|brawl)\b/.test(ov)) {
+      moods.add('fun-light');
+      moods.add('weird-good');
+    }
+    if (/\b(bizarre|surreal|strange|odd|eccentric|dream|nightmare|occult|cult|absurd|psychic|mutant|monster|creature|alien)\b/.test(ov)) {
+      moods.add('weird-good');
     }
   }
   if (moods.size === 0) {
@@ -342,6 +356,7 @@ export function normalizeTmdbMovieDetail(detail: TmdbMovieDetail): Movie | null 
     runtimeMinutes,
     detail.vote_count ?? 350,
     detail.original_language,
+    detail.overview,
   );
 
   const tmdbDraft: Movie = {

@@ -938,15 +938,16 @@ async function startServer() {
           jwGenresToQuery.push(code);
         }
       }
-      // If user picked no specific genre, sweep across 4 varied non-mainstream shelves
+      // If user picked no specific genre, sweep across 6 varied shelves (instead of 4) for maximum catalog breadth
       if (jwGenresToQuery.length === 0) {
-        const pool = ['hrr', 'scf', 'trl', 'crm', 'cmy', 'act', 'fnt', 'war'].filter((code) => {
+        const pool = ['hrr', 'scf', 'trl', 'crm', 'cmy', 'act', 'fnt', 'war', 'rma', 'msc'].filter((code) => {
           if (avoidHorror && code === 'hrr') return false;
           if (avoidRomance && code === 'rma') return false;
           return true;
         });
         const start = shuffleSeed % pool.length;
-        for (let i = 0; i < 4; i += 1) {
+        const sweepCount = Math.min(6, pool.length);
+        for (let i = 0; i < sweepCount; i += 1) {
           jwGenresToQuery.push(pool[(start + i) % pool.length]);
         }
       }
@@ -1002,7 +1003,7 @@ async function startServer() {
         };
       }
 
-      const runJwSlice = async (genreCode: string, offset: number, first = 50) => {
+      const runJwSlice = async (genreCode: string, offset: number, first = 100) => {
         const filter: Record<string, unknown> = {
           objectTypes: ['MOVIE'],
           releaseYear: yearRange,
@@ -1028,7 +1029,7 @@ async function startServer() {
               filter,
             },
           }),
-          signal: AbortSignal.timeout(4800),
+          signal: AbortSignal.timeout(5200),
         });
         if (!r.ok) return {totalCount: 0, edges: [] as JwCatalogEdge[]};
         const j = (await r.json()) as {
@@ -1040,41 +1041,52 @@ async function startServer() {
         };
       };
 
-      // Step 1: Query initial slices per selected genre in parallel
+      // Step 1: Query initial 100-item slices per selected genre in parallel
       const initialBatches = await Promise.all(
-        jwGenresToQuery.map((code, idx) => {
-          // Vary initial offset subtly if seed > 0 so fresh searches rotate deep shelf entries too
-          const seedJump = shuffleSeed > 0 ? ((shuffleSeed + idx * 7) % 4) * 20 : 0;
-          return runJwSlice(code, seedJump, 50).catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]}));
-        }),
+        jwGenresToQuery.map((code) =>
+          runJwSlice(code, 0, 100).catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
+        ),
       );
 
-      // Step 2: For any genre with deep catalog (totalCount > 50), dig deeper in parallel!
+      // Step 2: For any genre with >100 titles, pull non-overlapping deep slices in parallel
       const deepPromises: Array<Promise<{totalCount: number; edges: JwCatalogEdge[]}>> = [];
       initialBatches.forEach((batch, idx) => {
         const code = jwGenresToQuery[idx];
         const total = batch.totalCount;
-        if (total > 55) {
-          const maxSafe = Math.max(0, total - 50);
-          const tierRatio =
-            popularity === 'rare-international'
-              ? 0.55
-              : popularity === 'forgotten-midnight'
-                ? 0.36
-                : 0.2;
-          const jitter = ((shuffleSeed * 37 + idx * 29) % 100) / 500; // up to +0.20 variation
-          const offset1 = Math.min(maxSafe, Math.max(40, Math.floor(total * (tierRatio + jitter))));
+        if (total <= 100) return;
+
+        if (total <= 300) {
+          // Small/medium catalogs (e.g. 1970s Italy Horror = 203): fetch 100% of remaining titles cleanly
           deepPromises.push(
-            runJwSlice(code, offset1, 50).catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
+            runJwSlice(code, 100, 100).catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
           );
-          if (total > 180) {
-            const offset2 = Math.min(
-              maxSafe,
-              Math.max(80, Math.floor(total * Math.min(0.85, tierRatio + 0.35 + jitter * 0.5))),
+          if (total > 200) {
+            deepPromises.push(
+              runJwSlice(code, 200, 100).catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
             );
-            if (Math.abs(offset2 - offset1) >= 40) {
+          }
+        } else {
+          // Massive catalogs (400–4,000+): sample 3 deep 100-item strata shifted by popularity & shuffleSeed
+          const maxSafe = Math.max(100, total - 100);
+          const baseTier =
+            popularity === 'rare-international'
+              ? 0.25
+              : popularity === 'forgotten-midnight'
+                ? 0.2
+                : 0.14;
+          const jitter = ((shuffleSeed * 37 + idx * 29) % 100) / 800; // up to +0.125 rotation
+          const ratios = [
+            Math.min(0.88, baseTier + jitter),
+            Math.min(0.9, baseTier + 0.28 + jitter * 0.7),
+            Math.min(0.92, baseTier + 0.56 + jitter * 0.4),
+          ];
+          const chosenOffsets: number[] = [];
+          for (const ratio of ratios) {
+            const candidate = Math.min(maxSafe, Math.max(100, Math.floor(total * ratio)));
+            if (chosenOffsets.every((prev) => Math.abs(prev - candidate) >= 95)) {
+              chosenOffsets.push(candidate);
               deepPromises.push(
-                runJwSlice(code, offset2, 45).catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
+                runJwSlice(code, candidate, 100).catch(() => ({totalCount: 0, edges: [] as JwCatalogEdge[]})),
               );
             }
           }
@@ -1129,13 +1141,13 @@ async function startServer() {
         // Filter out mainstream household megahits while preserving rich cult/sleeper catalog
         const imdbVotes = typeof c.scoring?.imdbVotes === 'number' ? c.scoring.imdbVotes : 0;
         const maxAllowedVotes =
-          origin === 'italy' || origin === 'asia'
+          origin === 'italy' || origin === 'asia' || origin === 'europe'
             ? 190000
             : popularity === 'rare-international'
-              ? 85000
+              ? 95000
               : popularity === 'forgotten-midnight'
-                ? 110000
-                : 155000;
+                ? 120000
+                : 165000;
         if (imdbVotes > maxAllowedVotes) continue;
 
         const dedupeKey = `${c.title.toLowerCase().trim()}::${year}`;
@@ -1327,12 +1339,12 @@ async function startServer() {
             seenIds.add(item.id);
             candidates.push(item);
           }
-          if (candidates.length >= 40) break;
+          if (candidates.length >= 60) break;
         }
-        if (candidates.length >= 40) break;
+        if (candidates.length >= 60) break;
       }
 
-      if (candidates.length < 15) {
+      if (candidates.length < 25) {
         const relaxedRes = await fetch(
           `https://api.themoviedb.org/3/discover/movie?${buildDiscoverParams(true, undefined, 1).toString()}`,
           {signal: AbortSignal.timeout(5000)},
@@ -1344,7 +1356,7 @@ async function startServer() {
               seenIds.add(extra.id);
               candidates.push(extra);
             }
-            if (candidates.length >= 40) break;
+            if (candidates.length >= 60) break;
           }
         }
       }

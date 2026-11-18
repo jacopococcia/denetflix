@@ -85,20 +85,20 @@ const JW_CODE_TO_GENRES: Record<string, MovieGenre[]> = {
   war: ['War'],
 };
 
-const GENRE_TO_WIKIDATA_QID: Record<MovieGenre, string> = {
-  Action: 'wd:Q188473',
-  Adventure: 'wd:Q319221',
-  Comedy: 'wd:Q157443',
-  'Science fiction': 'wd:Q471839',
-  Fantasy: 'wd:Q157394',
-  Horror: 'wd:Q200092',
-  Thriller: 'wd:Q2484376',
-  Romance: 'wd:Q1054574',
-  Crime: 'wd:Q959790',
-  Family: 'wd:Q1361932',
-  Musical: 'wd:Q842256',
-  War: 'wd:Q369747',
-  Mystery: 'wd:Q1200678',
+const GENRE_TO_WIKIDATA_QIDS: Record<MovieGenre, string[]> = {
+  Action: ['wd:Q188473', 'wd:Q1033891', 'wd:Q2297927', 'wd:Q212781'],
+  Adventure: ['wd:Q319221', 'wd:Q1146103'],
+  Comedy: ['wd:Q157443', 'wd:Q1113860', 'wd:Q53094', 'wd:Q860626'],
+  'Science fiction': ['wd:Q471839', 'wd:Q174526', 'wd:Q58863', 'wd:Q1065716'],
+  Fantasy: ['wd:Q157394', 'wd:Q1436734', 'wd:Q589659'],
+  Horror: ['wd:Q200092', 'wd:Q605425', 'wd:Q853630', 'wd:Q130232', 'wd:Q2137852', 'wd:Q224700'],
+  Thriller: ['wd:Q2484376', 'wd:Q605425', 'wd:Q590103', 'wd:Q182015'],
+  Romance: ['wd:Q1054574', 'wd:Q860626'],
+  Crime: ['wd:Q959790', 'wd:Q185529', 'wd:Q2707784', 'wd:Q496523'],
+  Family: ['wd:Q1361932', 'wd:Q2143665'],
+  Musical: ['wd:Q842256', 'wd:Q1054942'],
+  War: ['wd:Q369747', 'wd:Q52162262'],
+  Mystery: ['wd:Q1200678', 'wd:Q605425', 'wd:Q182015'],
 };
 
 const ORIGIN_TO_WIKIDATA_QIDS: Record<string, string[]> = {
@@ -174,6 +174,7 @@ export function normalizeJustWatchCatalogMovie(item: ServerDiscoverItem): Movie 
     item.runtime,
     item.imdbVotes || 600,
     originInfo.isNonEnglish ? 'foreign' : 'en',
+    item.overview,
   );
 
   const decade = getDecadeBucket(item.year);
@@ -229,7 +230,7 @@ export function normalizeJustWatchCatalogMovie(item: ServerDiscoverItem): Movie 
  */
 export async function fetchMoviesFromWikidata(
   preferences: UserPreferences,
-  shuffleSeed: number,
+  _shuffleSeed: number,
   callerSignal?: AbortSignal,
 ): Promise<Movie[]> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -250,14 +251,14 @@ export async function fetchMoviesFromWikidata(
   const targetGenres: MovieGenre[] =
     preferences.genres.length > 0
       ? preferences.genres
-      : ['Horror', 'Science fiction', 'Thriller', 'Crime'];
+      : ['Horror', 'Science fiction', 'Thriller', 'Crime', 'Comedy'];
 
   const avoidHorror = preferences.exclusions.includes('avoid-horror') || preferences.context === 'family';
   const avoidRomance = preferences.exclusions.includes('avoid-romance');
   const filteredTargetGenres = targetGenres.filter((g) => {
     if (avoidHorror && g === 'Horror') return false;
     if (avoidRomance && g === 'Romance') return false;
-    return Boolean(GENRE_TO_WIKIDATA_QID[g]);
+    return Boolean(GENRE_TO_WIKIDATA_QIDS[g]);
   });
 
   if (filteredTargetGenres.length === 0) {
@@ -271,36 +272,44 @@ export async function fetchMoviesFromWikidata(
         ? ['wd:Q30', 'wd:Q145', 'wd:Q16', 'wd:Q408']
         : null;
 
-  const queryGenreSlice = async (genre: MovieGenre, index: number): Promise<Movie[]> => {
-    const genreQid = GENRE_TO_WIKIDATA_QID[genre];
+  const queryGenreSlice = async (genre: MovieGenre): Promise<Movie[]> => {
+    const allGenreQids = GENRE_TO_WIKIDATA_QIDS[genre];
+    const genreQids =
+      countryQids && countryQids.length > 3 ? allGenreQids.slice(0, 2) : allGenreQids;
     const countryClause = countryQids
       ? `VALUES ?c { ${countryQids.join(' ')} } ?film wdt:P495 ?c .`
       : '';
-    const offset = shuffleSeed > 0 ? ((shuffleSeed + index * 13) % 4) * 35 : 0;
 
     const sparql = `
-SELECT DISTINCT ?film (MIN(YEAR(?date)) AS ?year) ?articleTitle (SAMPLE(?yt) AS ?ytId) (SAMPLE(?ia) AS ?iaId) WHERE {
-  ?film wdt:P31 wd:Q11424 ;
-        wdt:P136 ${genreQid} ;
-        wdt:P577 ?date .
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT DISTINCT ?film (YEAR(?date) AS ?year) ?articleTitle ?ytId ?iaId WHERE {
+  VALUES ?g { ${genreQids.join(' ')} }
   ${countryClause}
-  FILTER(YEAR(?date) >= ${yearBounds.min} && YEAR(?date) <= ${yearBounds.max})
+  ?film wdt:P31 wd:Q11424 ;
+        wdt:P136 ?g ;
+        wdt:P577 ?date .
+  FILTER(?date >= "${yearBounds.min}-01-01T00:00:00Z"^^xsd:dateTime && ?date <= "${yearBounds.max}-12-31T23:59:59Z"^^xsd:dateTime)
   ?article schema:about ?film ;
            schema:isPartOf <https://en.wikipedia.org/> ;
            schema:name ?articleTitle .
-  OPTIONAL { ?film wdt:P1651 ?yt . }
-  OPTIONAL { ?film wdt:P724 ?ia . }
+  OPTIONAL { ?film wdt:P1651 ?ytId . }
+  OPTIONAL { ?film wdt:P724 ?iaId . }
 }
-GROUP BY ?film ?articleTitle
-LIMIT 50
-OFFSET ${offset}`;
+LIMIT 160`;
 
     const timeout = createTimeoutSignal(callerSignal, 7800);
     try {
+      const headers: Record<string, string> = {
+        Accept: 'application/sparql-results+json',
+        'Api-User-Agent': 'Denetflix/1.0 (https://www.jacopococcia.com)',
+      };
+      if (typeof window === 'undefined') {
+        headers['User-Agent'] = 'Denetflix/1.0 (https://www.jacopococcia.com)';
+      }
       const res = await fetch(
         `https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(sparql)}`,
         {
-          headers: {Accept: 'application/sparql-results+json'},
+          headers,
           signal: timeout.signal,
         },
       );
@@ -335,7 +344,7 @@ OFFSET ${offset}`;
                   ? {origin: 'usa', countryLabel: 'English Cinema', isNonEnglish: false}
                   : {origin: 'international', countryLabel: 'International', isNonEnglish: false};
 
-      const output: Movie[] = [];
+      const outputById = new Map<string, Movie>();
       for (const row of rows) {
         const uri = row.film?.value || '';
         const qid = uri.split('/').pop() || '';
@@ -355,6 +364,21 @@ OFFSET ${offset}`;
         const trailerYoutubeId = /^[A-Za-z0-9_-]{11}$/.test(rawYt) ? rawYt : undefined;
         const rawIa = row.iaId?.value?.trim() || '';
         const archiveOrgId = /^[A-Za-z0-9._-]+$/.test(rawIa) ? rawIa : undefined;
+
+        const existingInSlice = outputById.get(`wd-${qid}`);
+        if (existingInSlice) {
+          if (year < existingInSlice.year) {
+            existingInSlice.year = year;
+            existingInSlice.decade = getDecadeBucket(year);
+          }
+          if (!existingInSlice.trailerYoutubeId && trailerYoutubeId) {
+            existingInSlice.trailerYoutubeId = trailerYoutubeId;
+          }
+          if (!existingInSlice.archiveOrgId && archiveOrgId) {
+            existingInSlice.archiveOrgId = archiveOrgId;
+          }
+          continue;
+        }
 
         const decade = getDecadeBucket(year);
         const traits = inferTraitsFromGenres(
@@ -396,9 +420,9 @@ OFFSET ${offset}`;
           isDemoData: false,
         };
         wdDraft.defaultCon = buildMovieSpecificPainPoint(wdDraft);
-        output.push(wdDraft);
+        outputById.set(wdDraft.id, wdDraft);
       }
-      return output;
+      return Array.from(outputById.values());
     } catch (error) {
       if ((error as Error)?.name === 'AbortError' && callerSignal?.aborted) {
         throw error;
@@ -409,9 +433,9 @@ OFFSET ${offset}`;
     }
   };
 
-  // Query each selected genre in parallel (up to 3 genres) and merge multi-genre tags if the same film matched multiple genres
+  // Query up to 5 genres in parallel and merge multi-genre tags if the same film matched multiple genres
   const batches = await Promise.all(
-    filteredTargetGenres.slice(0, 3).map((g, idx) => queryGenreSlice(g, idx)),
+    filteredTargetGenres.slice(0, 5).map((g) => queryGenreSlice(g)),
   );
   const byId = new Map<string, Movie>();
   for (const movie of batches.flat()) {
@@ -506,9 +530,9 @@ export async function discoverLiveCatalog(
 
   let combined = [...jwMovies, ...tmdbResult.movies];
 
-  // If neither server JustWatch nor TMDB returned live titles (e.g., static GitHub Pages deploy),
-  // query CORS-friendly Wikidata SPARQL directly so users still get a massive 1960–1999 database.
-  if (combined.length < 8) {
+  // Supplement with CORS-friendly Wikidata SPARQL whenever server discovery isn't available (e.g. static GitHub Pages)
+  // OR when narrow filter combinations yielded fewer than 30 live candidates.
+  if (combined.length < 30) {
     const wdMovies = await fetchMoviesFromWikidata(preferences, shuffleSeed, callerSignal);
     if (wdMovies.length > 0) {
       sources.push('wikidata');
