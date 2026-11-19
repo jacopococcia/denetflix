@@ -70,7 +70,7 @@ export function HomePage({countryCode, onChangeCountry, onStartQuiz}: HomePagePr
 
         {/* Hero Visual Frame */}
         <div className="lg:col-span-6">
-          <div className="relative h-full min-h-[240px] overflow-hidden rounded-2xl border-2 border-[#E80000]/80 bg-[#141724] shadow-[6px_6px_0px_#E80000]">
+          <div className="animate-hero-float relative h-full min-h-[240px] overflow-hidden rounded-2xl border-2 border-[#E80000]/80 bg-[#141724] shadow-[6px_6px_0px_#E80000]">
             {!heroImgFailed ? (
               <img
                 src={heroCinemaImage}

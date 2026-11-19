@@ -160,6 +160,20 @@
   animation: denetflix-reel-float 1.8s ease-in-out infinite;
 }
 
+@keyframes denetflix-hero-float {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -8px, 0);
+  }
+}
+
+.animate-hero-float {
+  animation: denetflix-hero-float 5.2s ease-in-out infinite;
+  will-change: transform;
+}
+
 .animate-fade-in {
   animation: denetflix-fade-in 180ms ease-out both;
 }
