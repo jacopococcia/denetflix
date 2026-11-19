@@ -31,16 +31,16 @@ export function MovieCard({recommendation, rank, animationIndex = 0}: MovieCardP
     <>
       <article
         style={{animationDelay: `${Math.min(animationIndex, 9) * 35}ms`}}
-        className="group animate-card-enter rounded-2xl border border-white/10 bg-[#141724] p-5 sm:p-6 transition-colors duration-200 hover:border-white/20"
+        className="group animate-card-enter rounded-2xl border border-white/10 bg-[#141724] p-4 sm:p-6 transition-colors duration-200 hover:border-white/20"
       >
-        <div className="grid gap-6 md:grid-cols-[180px_1fr] lg:grid-cols-[200px_1fr]">
+        <div className="grid gap-5 sm:gap-6 md:grid-cols-[180px_1fr] lg:grid-cols-[200px_1fr]">
           {/* Poster column */}
-          <div className="mx-auto w-44 sm:w-48 md:mx-0 md:w-full shrink-0">
+          <div className="mx-auto w-40 sm:w-48 md:mx-0 md:w-full shrink-0">
             <MoviePoster movie={movie} />
           </div>
 
           {/* Details column */}
-          <div className="min-w-0 space-y-5">
+          <div className="min-w-0 space-y-4 sm:space-y-5">
             {/* Header block — clean unboxed metadata with typographic separators */}
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs font-semibold text-[#FF4D4D] tabular-nums">
@@ -55,7 +55,7 @@ export function MovieCard({recommendation, rank, animationIndex = 0}: MovieCardP
                 ) : null}
               </div>
 
-              <h2 className="font-display text-2xl font-bold leading-tight text-[#F6F4EE] sm:text-3xl">
+              <h2 className="break-words font-display text-xl font-bold leading-tight text-[#F6F4EE] sm:text-3xl">
                 {movie.title}
               </h2>
 
@@ -123,14 +123,14 @@ export function MovieCard({recommendation, rank, animationIndex = 0}: MovieCardP
 
             {/* Trailer button — placed below "The tiny catch" and before "Where to watch", hidden when unavailable */}
             {trailerYoutubeId ? (
-              <div className="flex flex-wrap items-center">
+              <div className="flex flex-wrap items-center pr-1 pb-1 sm:p-0">
                 <button
                   type="button"
                   onClick={() => {
                     playPageFlip();
                     setIsTrailerOpen(true);
                   }}
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border-2 border-[#0B0D14] bg-[#FFE600] px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-[#0B0D14] shadow-[3px_3px_0_0_#E80000] transition-transform duration-150 hover:-translate-y-0.5 hover:bg-[#fff04d] active:translate-y-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFE600]"
+                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border-2 border-[#0B0D14] bg-[#FFE600] px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-[#0B0D14] shadow-[3px_3px_0_0_#E80000] transition-transform duration-150 hover:-translate-y-0.5 hover:bg-[#fff04d] active:translate-y-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFE600] sm:w-auto"
                 >
                   <Play className="h-4 w-4 fill-current" aria-hidden="true" />
                   <span>Trailer</span>
@@ -140,21 +140,21 @@ export function MovieCard({recommendation, rank, animationIndex = 0}: MovieCardP
 
             {/* Where to watch & Own it on disc */}
             <div className="grid gap-4 lg:grid-cols-2">
-              <div className="space-y-2">
+              <div className="min-w-0 space-y-2">
                 <h3 className="text-xs font-semibold tracking-wide text-[#A8B1C7]">
                   Where to watch
                 </h3>
                 <AvailabilityBadge availability={availability} />
               </div>
 
-              <div className="space-y-2">
+              <div className="min-w-0 space-y-2">
                 <h3 className="text-xs font-semibold tracking-wide text-[#A8B1C7]">
                   Own it on disc
                 </h3>
                 <div className="rounded-xl border border-white/10 bg-[#0B0D14]/75 p-3.5 space-y-2.5">
                   <div className="flex items-start gap-2.5 text-sm">
                     <Disc3 className="mt-0.5 h-4 w-4 shrink-0 text-[#FF4D4D]" aria-hidden="true" />
-                    <div className="space-y-1">
+                    <div className="min-w-0 space-y-1">
                       <p className="font-medium text-[#F6F4EE]">Physical DVD & Blu-ray search</p>
                       <p className="text-xs text-[#A8B1C7]">{physicalMedia.stockNote}</p>
                     </div>
@@ -164,10 +164,10 @@ export function MovieCard({recommendation, rank, animationIndex = 0}: MovieCardP
                     href={physicalMedia.url}
                     target="_blank"
                     rel="noopener noreferrer sponsored"
-                    className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-[#E80000] px-4 py-2 text-xs font-semibold text-white hover:bg-[#ff1a1a] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000]"
+                    className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-[#E80000] px-4 py-2 text-center text-xs font-semibold text-white hover:bg-[#ff1a1a] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000]"
                   >
                     <span>{physicalMedia.label}</span>
-                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   </a>
 
                   <p className="text-[11px] leading-snug text-[#A8B1C7]/85">

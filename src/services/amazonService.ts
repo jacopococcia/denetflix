@@ -25,7 +25,7 @@ export function getAffiliateTagForCountry(countryCode: string = 'US'): string {
  * Looks up a verified physical-media ASIN from the curated catalog.
  */
 export function lookupVerifiedAsin(movieId?: string): string | null {
-  if (!movieId) return null;
+  if (!movieId || !Object.hasOwn(VERIFIED_AMAZON_ASINS, movieId)) return null;
   const candidate = VERIFIED_AMAZON_ASINS[movieId];
   if (candidate && /^[A-Z0-9]{10}$/.test(candidate)) {
     return candidate;
@@ -106,11 +106,7 @@ export function buildAmazonSearchUrl(
   year: number,
   countryCode: string = 'US',
 ): string {
-  const cleanTitle = title.trim();
-  if (!cleanTitle) {
-    throw new Error('Movie title is required to generate an Amazon search URL.');
-  }
-
+  const cleanTitle = title.trim() || 'retro cult movie';
   const normalizedCountry = countryCode.trim().toUpperCase() || 'US';
   const isItaly = normalizedCountry === 'IT';
   const tag = getAffiliateTagForCountry(normalizedCountry);

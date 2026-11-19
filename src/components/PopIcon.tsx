@@ -61,9 +61,9 @@ const ACCENT_STYLES: Record<WarholPopAccent, string> = {
 };
 
 const SIZE_STYLES: Record<NonNullable<PopIconProps['size']>, {box: string; icon: string}> = {
-  sm: {box: 'h-10 w-10 rounded-lg', icon: 'h-5 w-5'},
-  md: {box: 'h-11 w-11 rounded-xl', icon: 'h-5 w-5'},
-  lg: {box: 'h-13 w-13 rounded-xl', icon: 'h-6 w-6'},
+  sm: {box: 'h-9 w-9 rounded-lg sm:h-10 sm:w-10', icon: 'h-4 w-4 sm:h-5 sm:w-5'},
+  md: {box: 'h-10 w-10 rounded-xl sm:h-11 sm:w-11', icon: 'h-5 w-5'},
+  lg: {box: 'h-11 w-11 rounded-xl sm:h-13 sm:w-13', icon: 'h-5 w-5 sm:h-6 sm:w-6'},
 };
 
 export function PopIcon({name, accent = 'crimson-pop', size = 'md'}: PopIconProps) {

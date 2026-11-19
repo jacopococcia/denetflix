@@ -1,6 +1,7 @@
 import {ExternalLink, Film, X} from 'lucide-react';
 import {useEffect} from 'react';
 import {createPortal} from 'react-dom';
+import {sanitizeYoutubeId} from '../utils/urlSecurity';
 import {Button} from './Button';
 
 interface TrailerModalProps {
@@ -18,8 +19,10 @@ export function TrailerModal({
   trailerTitle,
   onClose,
 }: TrailerModalProps) {
+  const safeYoutubeId = sanitizeYoutubeId(youtubeId);
+
   useEffect(() => {
-    if (!youtubeId) return;
+    if (!safeYoutubeId) return;
 
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -34,12 +37,12 @@ export function TrailerModal({
       document.body.style.overflow = prevOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [youtubeId, onClose]);
+  }, [safeYoutubeId, onClose]);
 
-  if (!youtubeId || typeof document === 'undefined') return null;
+  if (!safeYoutubeId || typeof document === 'undefined') return null;
 
-  const watchUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(youtubeId)}`;
-  const embedUrl = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(youtubeId)}?autoplay=1&rel=0`;
+  const watchUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(safeYoutubeId)}`;
+  const embedUrl = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(safeYoutubeId)}?autoplay=1&rel=0`;
 
   return createPortal(
     <div
@@ -83,6 +86,7 @@ export function TrailerModal({
             src={embedUrl}
             title={`${movieTitle} (${movieYear}) trailer`}
             className="h-full w-full border-0"
+            referrerPolicy="strict-origin-when-cross-origin"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
           />

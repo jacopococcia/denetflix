@@ -1,6 +1,7 @@
 import type {Movie} from '../types/movie';
 import type {MovieGenre, UserPreferences} from '../types/quiz';
 import {buildMovieSpecificPainPoint} from '../utils/movieInsights';
+import {sanitizeExternalUrl} from '../utils/urlSecurity';
 import {
   createTimeoutSignal,
   fetchMoviesFromTmdb,
@@ -130,20 +131,20 @@ function inferOriginFromCountryList(countries: string[]): {
   if (EUROPE_CODES.has(primary)) {
     return {
       origin: 'europe',
-      countryLabel: COUNTRY_NAME_MAP[primary] || primary,
+      countryLabel: Object.hasOwn(COUNTRY_NAME_MAP, primary) ? COUNTRY_NAME_MAP[primary] : primary,
       isNonEnglish: !ENGLISH_PRIMARY_COUNTRIES.has(primary),
     };
   }
   if (ASIA_CODES.has(primary)) {
     return {
       origin: 'asia',
-      countryLabel: COUNTRY_NAME_MAP[primary] || primary,
+      countryLabel: Object.hasOwn(COUNTRY_NAME_MAP, primary) ? COUNTRY_NAME_MAP[primary] : primary,
       isNonEnglish: true,
     };
   }
   return {
     origin: 'international',
-    countryLabel: COUNTRY_NAME_MAP[primary] || primary || 'International',
+    countryLabel: (Object.hasOwn(COUNTRY_NAME_MAP, primary) ? COUNTRY_NAME_MAP[primary] : primary) || 'International',
     isNonEnglish: !ENGLISH_PRIMARY_COUNTRIES.has(primary),
   };
 }
@@ -155,8 +156,8 @@ export function normalizeJustWatchCatalogMovie(item: ServerDiscoverItem): Movie 
 
   const mappedGenres: MovieGenre[] = [];
   for (const code of item.genreCodes || []) {
+    if (!Object.hasOwn(JW_CODE_TO_GENRES, code)) continue;
     const candidates = JW_CODE_TO_GENRES[code];
-    if (!candidates) continue;
     for (const g of candidates) {
       if (!mappedGenres.includes(g)) {
         mappedGenres.push(g);
@@ -183,6 +184,7 @@ export function normalizeJustWatchCatalogMovie(item: ServerDiscoverItem): Movie 
     item.overview?.trim() ||
     `An underseen ${decade} ${originInfo.countryLabel} ${mappedGenres[0].toLowerCase()} feature directed by ${director}.`;
 
+  const safePosterUrl = sanitizeExternalUrl(item.posterUrl);
   const draftMovie: Movie = {
     id: item.id,
     justwatchId: item.justwatchId,
@@ -196,8 +198,8 @@ export function normalizeJustWatchCatalogMovie(item: ServerDiscoverItem): Movie 
     runtimeMinutes: item.runtime,
     genres: mappedGenres,
     synopsis,
-    posterUrl: item.posterUrl,
-    posterSource: item.posterUrl ? 'tmdb' : 'fallback',
+    posterUrl: safePosterUrl,
+    posterSource: safePosterUrl ? 'tmdb' : 'fallback',
     popularityTier: traits.popularityTier,
     moods: traits.moods,
     contexts: traits.contexts,
@@ -258,7 +260,7 @@ export async function fetchMoviesFromWikidata(
   const filteredTargetGenres = targetGenres.filter((g) => {
     if (avoidHorror && g === 'Horror') return false;
     if (avoidRomance && g === 'Romance') return false;
-    return Boolean(GENRE_TO_WIKIDATA_QIDS[g]);
+    return Object.hasOwn(GENRE_TO_WIKIDATA_QIDS, g);
   });
 
   if (filteredTargetGenres.length === 0) {
@@ -267,7 +269,9 @@ export async function fetchMoviesFromWikidata(
 
   const countryQids =
     preferences.origin !== 'any'
-      ? ORIGIN_TO_WIKIDATA_QIDS[preferences.origin] || null
+      ? Object.hasOwn(ORIGIN_TO_WIKIDATA_QIDS, preferences.origin)
+        ? ORIGIN_TO_WIKIDATA_QIDS[preferences.origin]
+        : null
       : preferences.exclusions.includes('avoid-subtitles')
         ? ['wd:Q30', 'wd:Q145', 'wd:Q16', 'wd:Q408']
         : null;
@@ -520,7 +524,9 @@ export async function fetchMoviesFromInternetArchive(
             ? {min: 1990, max: 1999}
             : {min: 1960, max: 1999};
 
-  const targetGenres = preferences.genres.slice(0, 3);
+  const targetGenres = preferences.genres
+    .filter((g) => Object.hasOwn(GENRE_TO_IA_QUERY, g))
+    .slice(0, 3);
   const genreClause =
     targetGenres.length > 0
       ? ` AND subject:(${targetGenres.map((g) => GENRE_TO_IA_QUERY[g]).join(' OR ')})`

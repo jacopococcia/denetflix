@@ -5,6 +5,7 @@ import type {
   StreamingOffer,
 } from '../types/movie';
 import {getCountryName} from '../utils/formatters';
+import {isSafeAssetPath, sanitizeExternalUrl} from '../utils/urlSecurity';
 import {createTimeoutSignal, getApiBaseUrl} from './tmdbService';
 
 interface TmdbWatchProviderEntry {
@@ -78,12 +79,15 @@ function mapProviderList(
   watchLink?: string,
 ): StreamingOffer[] {
   if (!Array.isArray(entries)) return [];
+  const safeWatchLink = sanitizeExternalUrl(watchLink);
   return entries.slice(0, 6).map((entry) => ({
     providerId: entry.provider_id,
     providerName: entry.provider_name,
     accessType,
-    logoUrl: entry.logo_path ? `https://image.tmdb.org/t/p/w92${entry.logo_path}` : null,
-    offerUrl: watchLink || null,
+    logoUrl: isSafeAssetPath(entry.logo_path)
+      ? `https://image.tmdb.org/t/p/w92${entry.logo_path}`
+      : null,
+    offerUrl: safeWatchLink,
   }));
 }
 
@@ -142,6 +146,8 @@ function parseWatchProvidersPayload(
     return true;
   });
 
+  const safeRegionLink = sanitizeExternalUrl(regionData.link) ?? undefined;
+
   if (deduped.length === 0) {
     return {
       status: 'not-found',
@@ -149,7 +155,7 @@ function parseWatchProvidersPayload(
       countryName,
       lastCheckedIso,
       offers: [],
-      watchLink: regionData.link,
+      watchLink: safeRegionLink,
       sourceAttribution: 'JustWatch data via TMDB',
       message: `Not currently found on tracked platforms in ${countryName}.`,
     };
@@ -161,7 +167,7 @@ function parseWatchProvidersPayload(
     countryName,
     lastCheckedIso,
     offers: deduped,
-    watchLink: regionData.link,
+    watchLink: safeRegionLink,
     sourceAttribution: 'JustWatch data via TMDB',
     message: `Checked ${countryName} streaming and digital listings.`,
   };
@@ -338,14 +344,23 @@ export async function fetchAvailabilityAndTrailer(
       const payload = (await proxyRes.json()) as ServerAvailabilityResponse;
       if (payload && payload.status) {
         const resolvedTrailer = validYoutubeId(payload.trailerYoutubeId) || staticTrailerId;
+        const sanitizedOffers: StreamingOffer[] = Array.isArray(payload.offers)
+          ? payload.offers
+              .filter((o) => o && typeof o.providerName === 'string' && o.providerName.trim())
+              .map((o) => ({
+                ...o,
+                logoUrl: sanitizeExternalUrl(o.logoUrl),
+                offerUrl: sanitizeExternalUrl(o.offerUrl),
+              }))
+          : [];
         const result: AvailabilityAndTrailerResult = {
           availability: {
             status: payload.status,
             countryCode: normalizedCountry,
             countryName,
             lastCheckedIso: new Date().toISOString(),
-            offers: Array.isArray(payload.offers) ? payload.offers : [],
-            watchLink: payload.watchLink,
+            offers: sanitizedOffers,
+            watchLink: sanitizeExternalUrl(payload.watchLink) ?? undefined,
             sourceAttribution: payload.sourceAttribution,
             message:
               payload.message ||

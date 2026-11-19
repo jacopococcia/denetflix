@@ -44,7 +44,9 @@ const COUNTRY_ADJECTIVE_MAP: Record<string, string> = {
 };
 
 function getCountryAdjective(countryLabel: string): string {
-  return COUNTRY_ADJECTIVE_MAP[countryLabel] || countryLabel;
+  return Object.hasOwn(COUNTRY_ADJECTIVE_MAP, countryLabel)
+    ? COUNTRY_ADJECTIVE_MAP[countryLabel]
+    : countryLabel;
 }
 
 function cleanShortTitle(title: string): string {

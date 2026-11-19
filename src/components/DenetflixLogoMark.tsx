@@ -1,9 +1,11 @@
 export function DenetflixLogoMark({
   size = 38,
   animated = false,
+  className = '',
 }: {
   size?: number;
   animated?: boolean;
+  className?: string;
 }) {
   return (
     <svg
@@ -14,7 +16,7 @@ export function DenetflixLogoMark({
       aria-hidden="true"
       className={`shrink-0 drop-shadow-[2px_2px_0px_#000000] transition-transform duration-200 ease-out hover:-rotate-3 hover:scale-105 ${
         animated ? 'animate-reel-float' : ''
-      }`}
+      } ${className}`}
     >
       {/* Pop Art crimson & ink comic badge */}
       <rect

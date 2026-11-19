@@ -2,6 +2,7 @@ import {Info, ShoppingBag, Tv} from 'lucide-react';
 import {Fragment} from 'react';
 import type {AvailabilityInfo, StreamingOffer} from '../types/movie';
 import {formatCheckedTimestamp} from '../utils/formatters';
+import {sanitizeExternalUrl} from '../utils/urlSecurity';
 
 interface AvailabilityBadgeProps {
   availability: AvailabilityInfo;
@@ -22,28 +23,32 @@ export function AvailabilityBadge({availability}: AvailabilityBadgeProps) {
       <div className="rounded-xl border border-white/10 bg-[#0B0D14]/75 p-3.5 text-sm">
         <div className="flex items-start gap-2.5 text-[#A8B1C7]">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#FF4D4D]" aria-hidden="true" />
-          <div className="space-y-1.5">
+          <div className="min-w-0 space-y-1.5">
             <p className="font-medium text-[#F6F4EE]">
               {availability.fallbackLinks && availability.fallbackLinks.length > 0
                 ? `Check where to stream (${availability.countryCode})`
                 : 'Availability not verified'}
             </p>
-            <p className="text-xs leading-relaxed text-[#A8B1C7]">
+            <p className="break-words text-xs leading-relaxed text-[#A8B1C7]">
               {availability.message}
             </p>
             {availability.fallbackLinks && availability.fallbackLinks.length > 0 ? (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-xs">
-                {availability.fallbackLinks.map((link) => (
-                  <a
-                    key={link.label}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-medium text-[#F6F4EE] underline decoration-white/30 underline-offset-2 hover:text-[#00D4FF] hover:decoration-[#00D4FF]"
-                  >
-                    {link.label}
-                  </a>
-                ))}
+              <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 pt-0.5 text-xs">
+                {availability.fallbackLinks.map((link) => {
+                  const safeUrl = sanitizeExternalUrl(link.url);
+                  if (!safeUrl) return null;
+                  return (
+                    <a
+                      key={link.label}
+                      href={safeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-[32px] items-center font-medium text-[#F6F4EE] underline decoration-white/30 underline-offset-4 hover:text-[#00D4FF] hover:decoration-[#00D4FF]"
+                    >
+                      {link.label}
+                    </a>
+                  );
+                })}
               </div>
             ) : null}
             <p className="text-xs text-[#A8B1C7]/80">Last checked: {checkedText}</p>
@@ -104,24 +109,27 @@ export function AvailabilityBadge({availability}: AvailabilityBadgeProps) {
               )}
               <span>{ACCESS_LABELS[accessType]}:</span>
             </dt>
-            <dd className="text-xs leading-relaxed text-[#F6F4EE]">
-              {offers.map((offer, idx) => (
-                <Fragment key={`${offer.providerName}-${accessType}-${idx}`}>
-                  {idx > 0 ? ', ' : null}
-                  {offer.offerUrl ? (
-                    <a
-                      href={offer.offerUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline decoration-white/30 underline-offset-2 hover:text-[#00D4FF] hover:decoration-[#00D4FF]"
-                    >
-                      {offer.providerName}
-                    </a>
-                  ) : (
-                    <span>{offer.providerName}</span>
-                  )}
-                </Fragment>
-              ))}
+            <dd className="min-w-0 break-words text-xs leading-relaxed text-[#F6F4EE]">
+              {offers.map((offer, idx) => {
+                const safeOfferUrl = sanitizeExternalUrl(offer.offerUrl);
+                return (
+                  <Fragment key={`${offer.providerName}-${accessType}-${idx}`}>
+                    {idx > 0 ? ', ' : null}
+                    {safeOfferUrl ? (
+                      <a
+                        href={safeOfferUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block py-0.5 underline decoration-white/30 underline-offset-4 hover:text-[#00D4FF] hover:decoration-[#00D4FF]"
+                      >
+                        {offer.providerName}
+                      </a>
+                    ) : (
+                      <span>{offer.providerName}</span>
+                    )}
+                  </Fragment>
+                );
+              })}
             </dd>
           </div>
         ))}

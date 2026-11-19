@@ -139,6 +139,7 @@ export function playStepTransition(direction: 'next' | 'back'): void {
 
 /** Subtle ascending chime when launching the movie archive search */
 export function playReelSpin(): void {
+  preloadToastyAudio();
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
@@ -155,9 +156,9 @@ export function playResultsReady(hasMatches: boolean): void {
     const ctx = getAudioContext();
     if (!ctx) return;
     if (hasMatches) {
-      scheduleTone(ctx, {freqStart: 392, durationSec: 0.11, delaySec: 0, gainPeak: 0.045, type: 'triangle'});
-      scheduleTone(ctx, {freqStart: 494, durationSec: 0.11, delaySec: 0.07, gainPeak: 0.045, type: 'triangle'});
-      scheduleTone(ctx, {freqStart: 587, durationSec: 0.18, delaySec: 0.14, gainPeak: 0.05, type: 'triangle'});
+      scheduleTone(ctx, {freqStart: 392, durationSec: 0.11, delaySec: 0, gainPeak: 0.035, type: 'triangle'});
+      scheduleTone(ctx, {freqStart: 494, durationSec: 0.11, delaySec: 0.07, gainPeak: 0.035, type: 'triangle'});
+      scheduleTone(ctx, {freqStart: 587, durationSec: 0.16, delaySec: 0.14, gainPeak: 0.04, type: 'triangle'});
     } else {
       scheduleTone(ctx, {freqStart: 294, freqEnd: 220, durationSec: 0.16, gainPeak: 0.04, type: 'sine'});
     }
@@ -183,41 +184,85 @@ export function playPageFlip(): void {
   }
 }
 
-/** Playful popcorn bucket popup bloop + crispy kernel pops when movie results land */
-export function playPopcornPop(): void {
+const TOASTY_AUDIO_URL = './assets/toasty-trimmed.mp3';
+let toastyBuffer: AudioBuffer | null = null;
+let toastyBufferPromise: Promise<AudioBuffer | null> | null = null;
+
+/**
+ * Pre-fetches and decodes the trimmed "Toasty!" audio clip (zero leading silence)
+ * while AudioContext is unlocked during quiz submission, guaranteeing instant playback.
+ */
+export function preloadToastyAudio(): void {
+  if (typeof window === 'undefined' || toastyBuffer || toastyBufferPromise) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  toastyBufferPromise = fetch(TOASTY_AUDIO_URL)
+    .then((res) => (res.ok ? res.arrayBuffer() : null))
+    .then((buf) => (buf ? ctx.decodeAudioData(buf.slice(0)) : null))
+    .then((decoded) => {
+      toastyBuffer = decoded;
+      return decoded;
+    })
+    .catch(() => null);
+}
+
+/** Plays the trimmed "Toasty!" shout immediately with zero leading silence */
+export function playToastyShout(): void {
+  if (!soundEnabled || typeof window === 'undefined') return;
+
+  const playViaHtmlAudio = () => {
+    try {
+      const el = new Audio(TOASTY_AUDIO_URL);
+      el.volume = 0.88;
+      el.currentTime = 0;
+      void el.play().catch(() => {
+        // Autoplay may be restricted if no prior gesture occurred
+      });
+    } catch {
+      // Non-critical
+    }
+  };
+
   try {
     const ctx = getAudioContext();
-    if (!ctx) return;
+    if (!ctx) {
+      playViaHtmlAudio();
+      return;
+    }
 
-    // Bouncy cartoon popup bloop
-    scheduleTone(ctx, {
-      freqStart: 270,
-      freqEnd: 640,
-      durationSec: 0.13,
-      delaySec: 0.02,
-      gainPeak: 0.06,
-      type: 'triangle',
-    });
+    const triggerBuffer = (buffer: AudioBuffer) => {
+      const source = ctx.createBufferSource();
+      const gain = ctx.createGain();
+      source.buffer = buffer;
+      gain.gain.setValueAtTime(0.92, ctx.currentTime);
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      source.start(0);
+    };
 
-    // Little crispy popcorn kernel pops timed to the bucket bounces
-    const kernelPops = [
-      {delaySec: 0.18, freqStart: 540, freqEnd: 880},
-      {delaySec: 0.34, freqStart: 640, freqEnd: 1020},
-      {delaySec: 0.54, freqStart: 480, freqEnd: 790},
-      {delaySec: 0.78, freqStart: 690, freqEnd: 1060},
-      {delaySec: 1.05, freqStart: 560, freqEnd: 910},
-    ];
-    for (const pop of kernelPops) {
-      scheduleTone(ctx, {
-        freqStart: pop.freqStart,
-        freqEnd: pop.freqEnd,
-        durationSec: 0.055,
-        delaySec: pop.delaySec,
-        gainPeak: 0.045,
-        type: 'sine',
+    if (toastyBuffer) {
+      triggerBuffer(toastyBuffer);
+      return;
+    }
+
+    if (!toastyBufferPromise) {
+      preloadToastyAudio();
+    }
+
+    if (toastyBufferPromise) {
+      void toastyBufferPromise.then((decoded) => {
+        if (!soundEnabled) return;
+        if (decoded) {
+          triggerBuffer(decoded);
+        } else {
+          playViaHtmlAudio();
+        }
       });
+    } else {
+      playViaHtmlAudio();
     }
   } catch {
-    // Non-critical
+    playViaHtmlAudio();
   }
 }

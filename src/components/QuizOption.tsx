@@ -27,7 +27,7 @@ export function QuizOption({
       role={selectionMode === 'single' ? 'radio' : 'checkbox'}
       aria-checked={selected}
       onClick={onSelect}
-      className={`group flex min-h-[58px] w-full items-center justify-between gap-3.5 rounded-xl border px-4 py-3 text-left transition-[background-color,border-color,transform] duration-150 ease-out cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] ${
+      className={`group flex min-h-[56px] w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 text-left transition-[background-color,border-color,transform] duration-150 ease-out cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] sm:min-h-[58px] sm:gap-3.5 sm:px-4 sm:py-3 ${
         selected
           ? 'border-[#E80000] bg-[#E80000]/16 text-[#F6F4EE]'
           : 'border-white/10 bg-[#141724] text-[#F6F4EE] hover:border-white/25 hover:bg-[#1B2033]'
@@ -36,9 +36,9 @@ export function QuizOption({
       <PopIcon name={icon} accent={accentColor} size="sm" />
 
       <span className="min-w-0 flex-1">
-        <span className="block text-base font-semibold leading-snug text-[#F6F4EE]">{label}</span>
+        <span className="block break-words text-[15px] font-semibold leading-snug text-[#F6F4EE] sm:text-base">{label}</span>
         {hint ? (
-          <span className="mt-0.5 block text-sm leading-snug text-[#A8B1C7]">{hint}</span>
+          <span className="mt-0.5 block break-words text-xs leading-snug text-[#A8B1C7] sm:text-sm">{hint}</span>
         ) : null}
       </span>
 

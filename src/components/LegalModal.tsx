@@ -34,11 +34,11 @@ export function LegalModal({topic, onClose}: LegalModalProps) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="legal-modal-title"
-      className="animate-fade-in fixed inset-0 z-[100] flex h-dvh w-screen items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+      className="animate-fade-in fixed inset-0 z-[100] flex h-dvh w-screen items-center justify-center bg-black/75 p-3 backdrop-blur-sm sm:p-4"
       onClick={onClose}
     >
       <div
-        className="animate-modal-pop flex max-h-[85dvh] w-full max-w-xl flex-col rounded-2xl border border-white/12 bg-[#141724] p-6 text-[#F6F4EE] shadow-2xl"
+        className="animate-modal-pop flex max-h-[88dvh] w-full max-w-xl flex-col rounded-2xl border border-white/12 bg-[#141724] p-4 text-[#F6F4EE] shadow-2xl sm:max-h-[85dvh] sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
@@ -97,21 +97,21 @@ export function LegalModal({topic, onClose}: LegalModalProps) {
           )}
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+        <div className="mt-5 flex flex-col-reverse items-stretch justify-between gap-2.5 border-t border-white/10 pt-4 sm:mt-6 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
           {topic === 'privacy' ? (
             <a
               href="./privacy.html"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-[44px] items-center gap-1.5 text-xs font-semibold text-[#00D4FF] underline underline-offset-4 hover:text-white"
+              className="inline-flex min-h-[44px] items-center justify-center gap-1.5 text-xs font-semibold text-[#00D4FF] underline underline-offset-4 hover:text-white sm:justify-start"
             >
               <span>Open standalone Privacy Policy page</span>
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             </a>
           ) : (
-            <span />
+            <span className="hidden sm:inline" />
           )}
-          <Button variant="primary" onClick={onClose}>
+          <Button variant="primary" onClick={onClose} className="w-full sm:w-auto">
             Close
           </Button>
         </div>

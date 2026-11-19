@@ -1,5 +1,6 @@
 import type {RecommendationBundle} from '../types/movie';
 import type {QuizAnswersMap} from '../types/quiz';
+import {sanitizeImageUrl} from './urlSecurity';
 
 export const BASE_SEO_TITLE = 'Denetflix – Rare & Cult Retro Cinema Finder (1960–1999)';
 export const BASE_SEO_DESCRIPTION =
@@ -105,7 +106,7 @@ function upsertResultsJsonLd(bundle: RecommendationBundle | null): void {
             ? {'@type': 'Person', name: rec.movie.director}
             : undefined,
           description: rec.movie.synopsis,
-          image: rec.movie.posterUrl || undefined,
+          image: sanitizeImageUrl(rec.movie.posterUrl) || undefined,
         },
       };
     }),

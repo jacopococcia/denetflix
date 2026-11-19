@@ -171,7 +171,7 @@ export default function App() {
   };
 
   return (
-    <div className="film-grain relative flex min-h-screen flex-col bg-[#0B0D14] text-[#F6F4EE]">
+    <div className="film-grain relative flex min-h-dvh flex-col bg-[#0B0D14] text-[#F6F4EE]">
       <RetroBackdrop />
 
       <Header

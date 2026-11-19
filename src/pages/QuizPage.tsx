@@ -153,14 +153,14 @@ export function QuizPage({
   const isMultiColumn = question.options.length > 6;
 
   return (
-    <section className="animate-view-enter mx-auto max-w-3xl px-4 py-6 pb-28 sm:px-6 sm:py-10 sm:pb-12">
-      <div className="space-y-6">
+    <section className="animate-view-enter mx-auto max-w-3xl px-4 py-5 pb-24 sm:px-6 sm:py-10 sm:pb-12">
+      <div className="space-y-5 sm:space-y-6">
         {/* Progress & Utility row */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
           <div className="flex-1">
             <ProgressBar currentStep={currentStepIndex + 1} totalSteps={totalSteps} />
           </div>
-          <div className="flex items-center gap-2 self-start sm:self-end">
+          <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
             <SoundToggle />
             <button
               type="button"
@@ -179,27 +179,37 @@ export function QuizPage({
         {/* Directional slide container keyed by step index */}
         <div
           key={question.id}
-          className={`space-y-6 ${
+          className={`space-y-5 sm:space-y-6 ${
             slideDirection === 'next' ? 'animate-slide-next' : 'animate-slide-prev'
           }`}
         >
           {/* Question Header with Warhol/Lichtenstein Pop Icon */}
-          <div className="flex items-start gap-4 pt-2">
+          <div className="flex items-start gap-3 pt-1 sm:gap-4 sm:pt-2">
             <PopIcon
               name={question.icon}
               accent={question.accentColor || 'crimson-pop'}
               size="lg"
             />
-            <div className="space-y-1.5">
-              <h1 className="font-display text-2xl font-extrabold leading-tight text-[#F6F4EE] sm:text-3xl">
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <h1 className="break-words font-display text-xl font-extrabold leading-tight text-[#F6F4EE] sm:text-3xl">
                 {question.prompt}
               </h1>
               <p className="text-sm text-[#A8B1C7] sm:text-base">{question.helperText}</p>
               {question.id === 'genres' ? (
-                <p className="text-xs font-semibold text-[#00E5FF] tabular-nums">
-                  Selected: {answers.genres.length} / {question.maxSelections ?? 3}
-                  {answers.genres.length === 0 ? ' (any genre works)' : ''}
-                </p>
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                  <p className="text-xs font-semibold text-[#00E5FF] tabular-nums">
+                    Selected: {answers.genres.length} / {question.maxSelections ?? 3}
+                    {answers.genres.length === 0 ? ' (any genre works)' : ''}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSurpriseGenres}
+                    className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-white/12 bg-[#141724] px-2.5 text-xs font-semibold text-[#FFE600] active:scale-[0.98] sm:hidden"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Surprise me</span>
+                  </button>
+                </div>
               ) : null}
             </div>
           </div>
@@ -252,20 +262,20 @@ export function QuizPage({
         </div>
       </div>
 
-      {/* Mobile thumb-zone bottom bar (under 15% viewport height) */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-white/10 bg-[#0B0D14]/95 px-4 py-3 backdrop-blur-md sm:hidden">
-        <div className="mx-auto flex max-w-3xl items-center gap-3">
+      {/* Mobile thumb-zone bottom bar (compact + iOS safe-area aware) */}
+      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-white/10 bg-[#0B0D14]/95 px-3.5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:hidden">
+        <div className="mx-auto flex max-w-3xl items-center gap-2.5">
           <Button
             variant="secondary"
             onClick={handleBack}
             disabled={isFirstStep}
-            className="flex-1"
+            className="flex-1 px-3.5"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             <span>Back</span>
           </Button>
 
-          <Button variant="primary" onClick={handleNext} className="flex-[2]">
+          <Button variant="primary" onClick={handleNext} className="flex-[2] px-4">
             <span>{isLastStep ? 'Find my movie' : 'Continue'}</span>
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>

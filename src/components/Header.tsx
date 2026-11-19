@@ -11,15 +11,15 @@ interface HeaderProps {
 export function Header({activeView, onStartQuiz, onGoHome, onNavigateSection}: HeaderProps) {
   return (
     <header className="sticky top-0 z-30 border-b border-white/8 bg-[#0B0D14]/92 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-8 px-4 py-3 sm:px-6">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-2.5 px-3.5 py-2 sm:gap-8 sm:px-6 sm:py-3">
         {/* Zone 1: Single-line Brand Wordmark + Pop Art Logo */}
         <button
           type="button"
           onClick={onGoHome}
-          className="inline-flex min-h-[44px] items-center gap-2.5 text-left font-display text-xl font-extrabold tracking-tight text-[#F6F4EE] whitespace-nowrap shrink-0 cursor-pointer hover:text-[#FFE600] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000] rounded-lg"
+          className="inline-flex min-h-[44px] items-center gap-2 text-left font-display text-lg font-extrabold tracking-tight text-[#F6F4EE] whitespace-nowrap shrink-0 cursor-pointer hover:text-[#FFE600] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000] rounded-lg sm:gap-2.5 sm:text-xl"
           aria-label="Denetflix home — real rare & cult genre cinema"
         >
-          <DenetflixLogoMark size={36} />
+          <DenetflixLogoMark size={32} className="sm:h-9 sm:w-9" />
           <span>Denetflix</span>
         </button>
 
@@ -60,11 +60,11 @@ export function Header({activeView, onStartQuiz, onGoHome, onNavigateSection}: H
         {/* Zone 3: Single primary action */}
         <div className="flex items-center shrink-0">
           {activeView === 'home' ? (
-            <Button variant="primary" onClick={onStartQuiz}>
+            <Button variant="primary" onClick={onStartQuiz} className="px-3.5 text-xs sm:px-5 sm:text-sm">
               Find my movie
             </Button>
           ) : (
-            <Button variant="secondary" onClick={onStartQuiz}>
+            <Button variant="secondary" onClick={onStartQuiz} className="px-3.5 text-xs sm:px-5 sm:text-sm">
               Start over
             </Button>
           )}

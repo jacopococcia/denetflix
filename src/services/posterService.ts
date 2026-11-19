@@ -1,4 +1,5 @@
 import type {Movie} from '../types/movie';
+import {sanitizeExternalUrl} from '../utils/urlSecurity';
 import {createTimeoutSignal, getApiBaseUrl} from './tmdbService';
 
 export interface PosterLookupContext {
@@ -38,8 +39,9 @@ async function fetchBackendPoster(
     const contentType = proxyRes.headers.get('content-type') || '';
     if (proxyRes.ok && contentType.includes('application/json')) {
       const data = (await proxyRes.json()) as {posterUrl?: string | null};
-      if (data.posterUrl) {
-        return data.posterUrl;
+      const safeUrl = sanitizeExternalUrl(data.posterUrl);
+      if (safeUrl) {
+        return safeUrl;
       }
     }
   } catch (error) {
@@ -75,7 +77,7 @@ async function fetchWikiSummaryDirect(
       extract?: string;
     };
     return {
-      posterUrl: json.thumbnail?.source ?? null,
+      posterUrl: sanitizeExternalUrl(json.thumbnail?.source),
       extract: json.extract?.trim() || null,
     };
   } catch (error) {

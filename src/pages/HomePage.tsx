@@ -15,43 +15,47 @@ export function HomePage({countryCode, onChangeCountry, onStartQuiz}: HomePagePr
   const [heroImgFailed, setHeroImgFailed] = useState(false);
 
   return (
-    <div className="animate-view-enter mx-auto max-w-6xl space-y-16 px-4 py-8 sm:px-6 sm:py-12">
+    <div className="animate-view-enter mx-auto max-w-6xl space-y-12 px-4 py-6 sm:space-y-16 sm:px-6 sm:py-12">
       {/* Hero Split */}
-      <section className="grid gap-8 lg:grid-cols-12 lg:items-stretch">
+      <section className="grid gap-7 lg:grid-cols-12 lg:items-stretch lg:gap-8">
         <div className="flex flex-col justify-between space-y-6 lg:col-span-6 lg:py-2">
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <DenetflixLogoMark size={32} />
-              <p className="text-xs font-bold tracking-wider text-[#FFE600] uppercase">
+          <div className="space-y-3.5 sm:space-y-4">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <DenetflixLogoMark size={30} className="shrink-0 sm:h-8 sm:w-8" />
+              <p className="min-w-0 text-[11px] font-bold leading-snug tracking-wider text-[#FFE600] uppercase sm:text-xs">
                 Algorithms aren’t cinema · Rare & Cult 1960–1999
               </p>
             </div>
 
-            <h1 className="font-display text-4xl font-extrabold leading-[1.08] tracking-tight text-[#F6F4EE] sm:text-5xl">
+            <h1 className="font-display text-[2rem] font-extrabold leading-[1.08] tracking-tight text-[#F6F4EE] sm:text-5xl">
               Ditch streaming slop. Find rare retro genre cinema.
             </h1>
 
-            <p className="max-w-xl text-base leading-relaxed text-[#A8B1C7] sm:text-lg">
+            <p className="max-w-xl text-[15px] leading-relaxed text-[#A8B1C7] sm:text-lg">
               Mainstream feeds serve plastic clones. Answer 5 quick pop-quiz questions to unearth all matching hard-to-find American, Italian, and international cult, midnight, and gloriously trashy genre films.
             </p>
           </div>
 
           <div className="space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Button variant="primary" onClick={onStartQuiz} className="sm:px-7 sm:py-3.5 sm:text-base">
+              <Button
+                variant="primary"
+                onClick={onStartQuiz}
+                className="w-full sm:w-auto sm:px-7 sm:py-3.5 sm:text-base"
+              >
                 <span>Find my movie</span>
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Button>
 
-              <div className="flex items-center gap-2">
-                <label htmlFor="home-country" className="text-xs font-medium text-[#A8B1C7] whitespace-nowrap">
+              <div className="flex w-full items-center gap-2 sm:w-auto">
+                <label htmlFor="home-country" className="text-xs font-medium text-[#A8B1C7] whitespace-nowrap shrink-0">
                   Check region:
                 </label>
                 <select
                   id="home-country"
                   value={countryCode}
                   onChange={(e) => onChangeCountry(e.target.value)}
-                  className="min-h-[44px] rounded-xl border border-white/14 bg-[#141724] px-3 text-sm font-medium text-[#F6F4EE] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000]"
+                  className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-white/14 bg-[#141724] px-3 text-sm font-medium text-[#F6F4EE] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000] sm:flex-none"
                 >
                   {SUPPORTED_COUNTRIES.map((country) => (
                     <option key={country.code} value={country.code}>
@@ -69,8 +73,8 @@ export function HomePage({countryCode, onChangeCountry, onStartQuiz}: HomePagePr
         </div>
 
         {/* Hero Visual Frame */}
-        <div className="lg:col-span-6">
-          <div className="animate-hero-float relative h-full min-h-[240px] overflow-hidden rounded-2xl border-2 border-[#E80000]/80 bg-[#141724] shadow-[6px_6px_0px_#E80000]">
+        <div className="pr-1.5 pb-1.5 lg:col-span-6 lg:p-0">
+          <div className="animate-hero-float relative h-full min-h-[220px] overflow-hidden rounded-2xl border-2 border-[#E80000]/80 bg-[#141724] shadow-[6px_6px_0px_#E80000] sm:min-h-[240px]">
             {!heroImgFailed ? (
               <img
                 src={heroCinemaImage}
@@ -147,12 +151,12 @@ export function HomePage({countryCode, onChangeCountry, onStartQuiz}: HomePagePr
             </p>
           </div>
 
-          <div className="flex flex-col items-start gap-3 md:items-end">
-            <Button variant="primary" onClick={onStartQuiz}>
+          <div className="flex flex-col items-stretch gap-3 sm:items-start md:items-end">
+            <Button variant="primary" onClick={onStartQuiz} className="w-full sm:w-auto">
               <span>Start the 5-question quiz</span>
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Button>
-            <p className="text-xs text-[#A8B1C7]">
+            <p className="text-center text-xs text-[#A8B1C7] sm:text-left md:text-right">
               Less algorithmic slop. More rare retro cinema.
             </p>
           </div>

@@ -1,6 +1,7 @@
 import {Film} from 'lucide-react';
 import {useEffect, useState} from 'react';
 import type {Movie} from '../types/movie';
+import {sanitizeImageUrl} from '../utils/urlSecurity';
 
 interface MoviePosterProps {
   movie: Movie;
@@ -43,7 +44,8 @@ export function MoviePoster({movie}: MoviePosterProps) {
     setImageError(false);
   }, [movie.posterUrl]);
 
-  const showImage = Boolean(movie.posterUrl) && !imageError;
+  const safePosterUrl = sanitizeImageUrl(movie.posterUrl);
+  const showImage = Boolean(safePosterUrl) && !imageError;
   const style = DECADE_POP_STYLES[movie.decade];
   const genreSummary = movie.genres.slice(0, 2).join('/');
   const directorSuffix =
@@ -52,12 +54,12 @@ export function MoviePoster({movie}: MoviePosterProps) {
       : '';
   const posterAlt = `${movie.title} (${movie.year}) — ${movie.countryLabel} ${genreSummary} cult movie poster${directorSuffix}`;
 
-  if (showImage && movie.posterUrl) {
+  if (showImage && safePosterUrl) {
     return (
       <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl border border-white/15 bg-[#0B0D14]">
         <img
-          key={movie.posterUrl}
-          src={movie.posterUrl}
+          key={safePosterUrl}
+          src={safePosterUrl}
           alt={posterAlt}
           loading="lazy"
           decoding="async"

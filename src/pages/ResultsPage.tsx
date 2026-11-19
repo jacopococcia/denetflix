@@ -2,8 +2,8 @@ import {ChevronLeft, ChevronRight, RotateCcw, Shuffle, SlidersHorizontal} from '
 import {useEffect, useRef, useState} from 'react';
 import {Button} from '../components/Button';
 import {ErrorBanner} from '../components/ErrorBanner';
+import {GhoulieToastyPopup} from '../components/GhoulieToastyPopup';
 import {MovieCard} from '../components/MovieCard';
-import {PopcornPopup} from '../components/PopcornPopup';
 import {SoundToggle} from '../components/SoundToggle';
 import {enrichRecommendationSlice} from '../services/recommendationService';
 import type {MovieRecommendation, RecommendationBundle} from '../types/movie';
@@ -60,7 +60,7 @@ export function ResultsPage({
     lastBundleRef.current = bundle;
     bundleCounterRef.current += 1;
   }
-  const popcornTriggerKey = `pop-${bundleCounterRef.current}`;
+  const toastyTriggerKey = `toasty-${bundleCounterRef.current}`;
 
   const enrichedPagesRef = useRef<Set<number>>(new Set([1]));
   const itemsRef = useRef<MovieRecommendation[]>(bundle.recommendations);
@@ -137,35 +137,35 @@ export function ResultsPage({
   const paginationItems = buildPaginationItems(safePage, totalPages);
 
   return (
-    <section className="animate-view-enter mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6 sm:py-10">
+    <section className="animate-view-enter mx-auto max-w-5xl space-y-6 px-4 py-6 sm:space-y-8 sm:px-6 sm:py-10">
       {/* Results header */}
       <div ref={resultsTopRef} className="scroll-mt-20 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold tracking-wider text-[#FF4D4D] uppercase tabular-nums">
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="min-w-0 space-y-2">
+            <p className="text-xs font-semibold leading-relaxed tracking-wider text-[#FF4D4D] uppercase tabular-nums">
               {totalResults} Rare Retro {totalResults === 1 ? 'Pick' : 'Picks'}
               {totalResults > RESULTS_PER_PAGE
                 ? ` · Page ${safePage} of ${totalPages} · Showing ${startIndex + 1}–${endIndex}`
                 : ''}
               {` · ${getCountryName(countryCode)} (${countryCode})`}
             </p>
-            <h1 className="font-display text-3xl font-extrabold leading-tight text-[#F6F4EE] sm:text-4xl">
+            <h1 className="font-display text-2xl font-extrabold leading-tight text-[#F6F4EE] sm:text-4xl">
               Your retro movie lineup is ready.
             </h1>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Button variant="secondary" onClick={onModifyAnswers}>
+          <div className="flex w-full flex-wrap items-center gap-2.5 sm:w-auto">
+            <Button variant="secondary" onClick={onModifyAnswers} className="flex-1 px-3.5 sm:flex-none sm:px-5">
               <span>Change my answers</span>
             </Button>
-            <Button variant="primary" onClick={onStartOver}>
+            <Button variant="primary" onClick={onStartOver} className="flex-1 px-3.5 sm:flex-none sm:px-5">
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
               <span>Start over</span>
             </Button>
           </div>
         </div>
 
-        <p className="max-w-3xl text-base leading-relaxed text-[#A8B1C7]">
+        <p className="max-w-3xl text-[15px] leading-relaxed text-[#A8B1C7] sm:text-base">
           {bundle.personalizedIntro}
         </p>
 
@@ -216,7 +216,7 @@ export function ResultsPage({
                 id="results-country-select"
                 value={countryCode}
                 onChange={(e) => onChangeCountry(e.target.value)}
-                className="min-h-[44px] rounded-xl border border-white/15 bg-[#0B0D14] px-3.5 text-sm font-medium text-[#F6F4EE] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000]"
+                className="min-h-[44px] w-full rounded-xl border border-white/15 bg-[#0B0D14] px-3.5 text-sm font-medium text-[#F6F4EE] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000] sm:w-auto"
               >
                 {SUPPORTED_COUNTRIES.map((country) => (
                   <option key={country.code} value={country.code}>
@@ -238,8 +238,8 @@ export function ResultsPage({
 
       {/* Paginated movie recommendations list (10 per page) */}
       {totalResults === 0 ? (
-        <div className="animate-view-enter rounded-2xl border border-[#E80000]/40 bg-[#141724] p-8 text-center space-y-4">
-          <h2 className="font-display text-2xl font-bold text-[#F6F4EE]">
+        <div className="animate-view-enter rounded-2xl border border-[#E80000]/40 bg-[#141724] p-5 text-center space-y-4 sm:p-8">
+          <h2 className="font-display text-xl font-bold text-[#F6F4EE] sm:text-2xl">
             No movies exist under that exact rule combination
           </h2>
           <p className="mx-auto max-w-lg text-sm leading-relaxed text-[#A8B1C7]">
@@ -256,11 +256,11 @@ export function ResultsPage({
               ))}
             </ul>
           ) : null}
-          <div className="flex justify-center gap-3 pt-1">
-            <Button variant="primary" onClick={onModifyAnswers}>
+          <div className="flex flex-col justify-center gap-2.5 pt-1 sm:flex-row sm:gap-3">
+            <Button variant="primary" onClick={onModifyAnswers} className="w-full sm:w-auto">
               Change my answers
             </Button>
-            <Button variant="secondary" onClick={onStartOver}>
+            <Button variant="secondary" onClick={onStartOver} className="w-full sm:w-auto">
               Start over
             </Button>
           </div>
@@ -280,20 +280,20 @@ export function ResultsPage({
           {totalPages > 1 ? (
             <nav
               aria-label="Results pagination"
-              className="flex flex-col items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#141724] px-4 py-4 sm:flex-row sm:px-6"
+              className="flex flex-col items-center justify-between gap-3.5 rounded-2xl border border-white/10 bg-[#141724] px-3 py-3.5 sm:flex-row sm:gap-4 sm:px-6 sm:py-4"
             >
-              <p className="text-xs font-medium text-[#A8B1C7] tabular-nums">
+              <p className="text-center text-xs font-medium text-[#A8B1C7] tabular-nums sm:text-left">
                 Showing <span className="font-semibold text-[#F6F4EE]">{startIndex + 1}–{endIndex}</span> of{' '}
                 <span className="font-semibold text-[#F6F4EE]">{totalResults}</span> matching films
               </p>
 
-              <div className="flex flex-wrap items-center justify-center gap-1.5">
+              <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-1.5">
                 <button
                   type="button"
                   onClick={() => handleGoToPage(safePage - 1)}
                   disabled={safePage === 1}
                   aria-label="Previous page"
-                  className="inline-flex min-h-[44px] items-center gap-1 rounded-xl border border-white/12 bg-[#0B0D14] px-3 text-xs font-semibold text-[#F6F4EE] transition-colors hover:border-white/30 hover:bg-[#1D2134] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000]"
+                  className="inline-flex min-h-[44px] items-center gap-1 rounded-xl border border-white/12 bg-[#0B0D14] px-2.5 text-xs font-semibold text-[#F6F4EE] transition-colors hover:border-white/30 hover:bg-[#1D2134] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000] sm:px-3"
                 >
                   <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                   <span>Prev</span>
@@ -303,7 +303,7 @@ export function ResultsPage({
                   item === 'ellipsis' ? (
                     <span
                       key={`ellipsis-${idx}`}
-                      className="px-2 text-xs font-semibold text-[#A8B1C7] select-none"
+                      className="px-1.5 text-xs font-semibold text-[#A8B1C7] select-none sm:px-2"
                       aria-hidden="true"
                     >
                       …
@@ -315,7 +315,7 @@ export function ResultsPage({
                       onClick={() => handleGoToPage(item)}
                       aria-current={item === safePage ? 'page' : undefined}
                       aria-label={`Page ${item}`}
-                      className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl px-3 text-xs font-bold tabular-nums transition-transform duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000] active:scale-[0.96] ${
+                      className={`inline-flex min-h-[44px] min-w-[40px] items-center justify-center rounded-xl px-2.5 text-xs font-bold tabular-nums transition-transform duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000] active:scale-[0.96] sm:min-w-[44px] sm:px-3 ${
                         item === safePage
                           ? 'border-2 border-[#FFE600] bg-[#E80000] text-white shadow-[2px_2px_0_0_#000000]'
                           : 'border border-white/12 bg-[#0B0D14] text-[#A8B1C7] hover:border-white/30 hover:text-[#F6F4EE]'
@@ -331,7 +331,7 @@ export function ResultsPage({
                   onClick={() => handleGoToPage(safePage + 1)}
                   disabled={safePage === totalPages}
                   aria-label="Next page"
-                  className="inline-flex min-h-[44px] items-center gap-1 rounded-xl border border-white/12 bg-[#0B0D14] px-3 text-xs font-semibold text-[#F6F4EE] transition-colors hover:border-white/30 hover:bg-[#1D2134] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000]"
+                  className="inline-flex min-h-[44px] items-center gap-1 rounded-xl border border-white/12 bg-[#0B0D14] px-2.5 text-xs font-semibold text-[#F6F4EE] transition-colors hover:border-white/30 hover:bg-[#1D2134] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000] sm:px-3"
                 >
                   <span>Next</span>
                   <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -343,7 +343,7 @@ export function ResultsPage({
       )}
 
       {/* Bottom CTA */}
-      <div className="flex flex-col items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#141724] p-6 text-center sm:flex-row sm:text-left">
+      <div className="flex flex-col items-center justify-between gap-4 rounded-2xl border border-white/10 bg-[#141724] p-5 text-center sm:flex-row sm:p-6 sm:text-left">
         <div className="space-y-1">
           <p className="font-display text-lg font-bold text-[#F6F4EE]">
             Want to dig into another shelf?
@@ -352,17 +352,17 @@ export function ResultsPage({
             Tweak one or two answers or spin up a fresh retro search in seconds.
           </p>
         </div>
-          <div className="flex flex-wrap gap-3">
-            <Button variant="secondary" onClick={onModifyAnswers}>
-              Change my answers
-            </Button>
-            <Button variant="primary" onClick={onStartOver}>
-              Start over
-            </Button>
-          </div>
+        <div className="flex w-full flex-wrap justify-center gap-2.5 sm:w-auto sm:justify-end sm:gap-3">
+          <Button variant="secondary" onClick={onModifyAnswers} className="flex-1 px-3.5 sm:flex-none sm:px-5">
+            Change my answers
+          </Button>
+          <Button variant="primary" onClick={onStartOver} className="flex-1 px-3.5 sm:flex-none sm:px-5">
+            Start over
+          </Button>
         </div>
+      </div>
 
-        {totalResults > 0 ? <PopcornPopup triggerKey={popcornTriggerKey} /> : null}
+        {totalResults > 0 ? <GhoulieToastyPopup triggerKey={toastyTriggerKey} /> : null}
       </section>
   );
 }

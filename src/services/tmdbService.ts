@@ -1,6 +1,7 @@
 import type {Movie} from '../types/movie';
 import type {AttentionPreference, MoodPreference, MovieGenre, PopularityPreference, UserPreferences, ViewingContext} from '../types/quiz';
 import {buildMovieSpecificPainPoint} from '../utils/movieInsights';
+import {isSafeAssetPath} from '../utils/urlSecurity';
 
 export interface TmdbFetchResult {
   movies: Movie[];
@@ -338,7 +339,7 @@ export function normalizeTmdbMovieDetail(detail: TmdbMovieDetail): Movie | null 
   }
 
   const mappedGenres = (detail.genres || [])
-    .map((g) => TMDB_GENRE_ID_TO_NAME[g.id])
+    .map((g) => (Object.hasOwn(TMDB_GENRE_ID_TO_NAME, g.id) ? TMDB_GENRE_ID_TO_NAME[g.id] : undefined))
     .filter((g): g is MovieGenre => Boolean(g));
 
   // Never fabricate a genre if TMDB didn't match any of the 13 validated Denetflix genres
@@ -371,8 +372,10 @@ export function normalizeTmdbMovieDetail(detail: TmdbMovieDetail): Movie | null 
     runtimeMinutes,
     genres,
     synopsis: detail.overview?.trim() || 'Synopsis unavailable from TMDB.',
-    posterUrl: detail.poster_path ? `https://image.tmdb.org/t/p/w500${detail.poster_path}` : null,
-    posterSource: detail.poster_path ? 'tmdb' : 'fallback',
+    posterUrl: isSafeAssetPath(detail.poster_path)
+      ? `https://image.tmdb.org/t/p/w500${detail.poster_path}`
+      : null,
+    posterSource: isSafeAssetPath(detail.poster_path) ? 'tmdb' : 'fallback',
     popularityTier: traits.popularityTier,
     moods: traits.moods,
     contexts: traits.contexts,
@@ -501,7 +504,9 @@ export async function fetchMoviesFromTmdb(
       });
 
       if (preferences.genres.length > 0) {
-        const ids = preferences.genres.map((g) => GENRE_NAME_TO_TMDB_ID[g]).filter(Boolean);
+        const ids = preferences.genres
+          .map((g) => (Object.hasOwn(GENRE_NAME_TO_TMDB_ID, g) ? GENRE_NAME_TO_TMDB_ID[g] : undefined))
+          .filter((id): id is number => Boolean(id));
         if (ids.length > 0) {
           params.set('with_genres', ids.join('|'));
         }
