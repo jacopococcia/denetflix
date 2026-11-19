@@ -59,6 +59,13 @@ export default function App() {
       setErrorMessage(null);
       playReelSpin();
       setActiveView('loading');
+      const htmlEl = document.documentElement;
+      const prevBehavior = htmlEl.style.scrollBehavior;
+      htmlEl.style.scrollBehavior = 'auto';
+      window.scrollTo({top: 0, left: 0, behavior: 'instant' as ScrollBehavior});
+      htmlEl.scrollTop = 0;
+      document.body.scrollTop = 0;
+      htmlEl.style.scrollBehavior = prevBehavior;
 
       const startedAt = Date.now();
       // Hard upper bound guard so UI never hangs in loading loop even if network stalls

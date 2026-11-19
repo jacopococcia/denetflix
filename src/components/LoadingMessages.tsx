@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useLayoutEffect, useState} from 'react';
 import {Button} from './Button';
 import {DenetflixLogoMark} from './DenetflixLogoMark';
 
@@ -14,8 +14,24 @@ interface LoadingMessagesProps {
   onCancel: () => void;
 }
 
+function scrollToTopImmediately(): void {
+  const html = document.documentElement;
+  const prevBehavior = html.style.scrollBehavior;
+  html.style.scrollBehavior = 'auto';
+  window.scrollTo({top: 0, left: 0, behavior: 'instant' as ScrollBehavior});
+  html.scrollTop = 0;
+  document.body.scrollTop = 0;
+  html.style.scrollBehavior = prevBehavior;
+}
+
 export function LoadingMessages({onCancel}: LoadingMessagesProps) {
   const [messageIndex, setMessageIndex] = useState(0);
+
+  useLayoutEffect(() => {
+    scrollToTopImmediately();
+    const rafId = window.requestAnimationFrame(scrollToTopImmediately);
+    return () => window.cancelAnimationFrame(rafId);
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
