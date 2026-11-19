@@ -41,14 +41,20 @@ jobs:
 
       - name: Build static bundle for GitHub Pages
         env:
-          # Automatically sets "/<repo-name>/" for project pages; override if using a custom domain ("/")
-          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_BASE_PATH: /
           VITE_DEFAULT_COUNTRY: ${{ vars.VITE_DEFAULT_COUNTRY || 'US' }}
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || '' }}
           VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY }}
         run: npm run build
 
+      - name: Configure custom domain
+        run: |
+          printf '%s\n' 'www.denetflix.me' > dist/CNAME
+          echo "Generated CNAME:"
+          cat dist/CNAME
+
       - name: Setup Pages
+
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
