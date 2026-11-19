@@ -1,5 +1,6 @@
 import {ExternalLink, Film, X} from 'lucide-react';
 import {useEffect} from 'react';
+import {createPortal} from 'react-dom';
 import {Button} from './Button';
 
 interface TrailerModalProps {
@@ -19,39 +20,46 @@ export function TrailerModal({
 }: TrailerModalProps) {
   useEffect(() => {
     if (!youtubeId) return;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [youtubeId, onClose]);
 
-  if (!youtubeId) return null;
+  if (!youtubeId || typeof document === 'undefined') return null;
 
   const watchUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(youtubeId)}`;
   const embedUrl = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(youtubeId)}?autoplay=1&rel=0`;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="trailer-modal-title"
-      className="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+      className="animate-fade-in fixed inset-0 z-[100] flex h-dvh w-screen items-center justify-center overflow-y-auto bg-black/85 p-3 backdrop-blur-sm sm:p-4"
       onClick={onClose}
     >
       <div
-        className="animate-modal-pop w-full max-w-3xl overflow-hidden rounded-2xl border-2 border-[#0B0D14] bg-[#141724] text-[#F6F4EE] shadow-[0_24px_60px_rgba(0,0,0,0.75)] ring-1 ring-white/15"
+        className="animate-modal-pop my-auto flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-y-auto rounded-2xl border-2 border-[#0B0D14] bg-[#141724] text-[#F6F4EE] shadow-[0_24px_60px_rgba(0,0,0,0.75)] ring-1 ring-white/15"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-3.5">
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 px-4 py-3 sm:px-5 sm:py-3.5">
           <div className="flex min-w-0 items-center gap-2.5">
             <Film className="h-5 w-5 shrink-0 text-[#E80000]" aria-hidden="true" />
             <div className="min-w-0">
               <h2
                 id="trailer-modal-title"
-                className="truncate font-display text-lg font-bold text-[#F6F4EE] sm:text-xl"
+                className="truncate font-display text-base font-bold text-[#F6F4EE] sm:text-xl"
               >
                 {movieTitle} ({movieYear})
               </h2>
@@ -70,7 +78,7 @@ export function TrailerModal({
           </button>
         </div>
 
-        <div className="relative aspect-video w-full bg-black">
+        <div className="relative aspect-video w-full shrink-0 bg-black">
           <iframe
             src={embedUrl}
             title={`${movieTitle} (${movieYear}) trailer`}
@@ -80,7 +88,7 @@ export function TrailerModal({
           />
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-[#0B0D14]/70 px-5 py-3">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-[#0B0D14]/70 px-4 py-2.5 sm:px-5 sm:py-3">
           <a
             href={watchUrl}
             target="_blank"
@@ -96,6 +104,7 @@ export function TrailerModal({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

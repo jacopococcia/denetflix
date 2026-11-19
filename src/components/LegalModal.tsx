@@ -1,5 +1,6 @@
 import {ExternalLink, X} from 'lucide-react';
 import {useEffect} from 'react';
+import {createPortal} from 'react-dom';
 import {AMAZON_AFFILIATE_DISCLOSURE} from '../services/amazonService';
 import {Button} from './Button';
 
@@ -11,27 +12,33 @@ interface LegalModalProps {
 export function LegalModal({topic, onClose}: LegalModalProps) {
   useEffect(() => {
     if (!topic) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [topic, onClose]);
 
-  if (!topic) return null;
+  if (!topic || typeof document === 'undefined') return null;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="legal-modal-title"
-      className="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+      className="animate-fade-in fixed inset-0 z-[100] flex h-dvh w-screen items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="animate-modal-pop flex max-h-[85vh] w-full max-w-xl flex-col rounded-2xl border border-white/12 bg-[#141724] p-6 text-[#F6F4EE] shadow-2xl"
+        className="animate-modal-pop flex max-h-[85dvh] w-full max-w-xl flex-col rounded-2xl border border-white/12 bg-[#141724] p-6 text-[#F6F4EE] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
@@ -109,7 +116,8 @@ export function LegalModal({topic, onClose}: LegalModalProps) {
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

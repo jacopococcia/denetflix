@@ -137,19 +137,19 @@
 }
 
 .animate-view-enter {
-  animation: denetflix-view-enter 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: denetflix-view-enter 240ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 .animate-slide-next {
-  animation: denetflix-slide-next 210ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: denetflix-slide-next 210ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 .animate-slide-prev {
-  animation: denetflix-slide-prev 210ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: denetflix-slide-prev 210ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 .animate-card-enter {
-  animation: denetflix-card-enter 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: denetflix-card-enter 260ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 .animate-pop-check {

@@ -1,4 +1,5 @@
 import {useEffect, useState} from 'react';
+import {createPortal} from 'react-dom';
 import {playPopcornPop} from '../utils/soundEffects';
 
 interface PopcornPopupProps {
@@ -48,13 +49,13 @@ export function PopcornPopup({triggerKey}: PopcornPopupProps) {
     };
   }, [triggerKey]);
 
-  if (!visible) return null;
+  if (!visible || typeof document === 'undefined') return null;
 
-  return (
+  return createPortal(
     <div
       key={triggerKey}
       aria-hidden="true"
-      className="pointer-events-none fixed right-5 bottom-5 z-40 select-none sm:right-7 sm:bottom-7"
+      className="pointer-events-none fixed right-5 bottom-5 z-50 select-none sm:right-7 sm:bottom-7"
     >
       <div className="animate-popcorn-popup relative h-24 w-24">
         {/* Falling popped corn kernels spilling out of the bouncing bucket */}
@@ -155,6 +156,7 @@ export function PopcornPopup({triggerKey}: PopcornPopupProps) {
           />
         </svg>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
