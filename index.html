@@ -10,19 +10,141 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <title>Denetflix — Rare, Cult & Trashy Genre Cinema (1960s–1990s)</title>
+    <link rel="alternate" type="text/plain" href="./llms.txt" title="LLM Context (llms.txt)" />
+    <link rel="alternate" type="text/plain" href="./llms-full.txt" title="Full LLM Context (llms-full.txt)" />
+
+    <title>Denetflix – Rare &amp; Cult Retro Cinema Finder (1960–1999)</title>
     <meta
       name="description"
-      content="Streaming algorithms aren't cinema. Answer a few playful questions to unearth up to 7 rare, cult, and gloriously weird 1960s–1990s genre films."
+      content="Ditch streaming algorithms. Take Denetflix's 5-question pop quiz to discover rare 1960s–1999 cult, giallo, sci-fi, and indie genre films."
     />
-    <meta property="og:title" content="Denetflix — Real Rare & Cult Genre Cinema" />
+    <meta
+      name="keywords"
+      content="Denetflix, rare retro movies, cult cinema finder, 1960s 1970s 1980s 1990s movies, Italian giallo, poliziotteschi, midnight VHS movies, independent cinema, anti-algorithm movie recommendations"
+    />
+    <meta name="author" content="Jacopo Coccia" />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
+    <meta name="theme-color" content="#E80000" />
+
+    <!-- OpenGraph Social Share Card -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Denetflix" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="Denetflix – Rare &amp; Cult Retro Cinema Finder (1960–1999)" />
     <meta
       property="og:description"
-      content="Less algorithmic slop. More rare, cult, and gloriously weird retro genre cinema from 1960 to 1999."
+      content="Ditch streaming algorithms. Take Denetflix's 5-question pop quiz to discover rare 1960s–1999 cult, giallo, sci-fi, and indie genre films."
     />
-    <meta property="og:type" content="website" />
+    <meta property="og:image" content="./og-denetflix.jpg" />
+    <meta
+      property="og:image:alt"
+      content="Pop art illustration of a VHS collector basement with shelves of cult horror and giallo tapes, vintage VCR, popcorn, and midnight cinema posters"
+    />
+
+    <!-- Twitter / X Social Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="theme-color" content="#E80000" />
+    <meta name="twitter:title" content="Denetflix – Rare &amp; Cult Retro Cinema Finder (1960–1999)" />
+    <meta
+      name="twitter:description"
+      content="Ditch streaming algorithms. Take Denetflix's 5-question pop quiz to discover rare 1960s–1999 cult, giallo, sci-fi, and indie genre films."
+    />
+    <meta name="twitter:image" content="./og-denetflix.jpg" />
+    <meta
+      name="twitter:image:alt"
+      content="Denetflix pop-art VHS midnight cult cinema vault"
+    />
+
+    <!-- Schema.org Structured Data (SEO + GEO) -->
+    <script id="denetflix-schema-graph" type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "name": "Denetflix",
+            "alternateName": "Denetflix Retro Cult Cinema Finder",
+            "applicationCategory": "EntertainmentApplication",
+            "operatingSystem": "All",
+            "browserRequirements": "Requires JavaScript. Modern HTML5 web browser.",
+            "inLanguage": "en",
+            "isAccessibleForFree": true,
+            "image": "./og-denetflix.jpg",
+            "description": "Independent, anti-algorithm movie discovery web app covering rare, cult, midnight, and underseen American, Italian, European, and Asian genre films from 1960 to 1999.",
+            "featureList": [
+              "5-question interactive retro cinema quiz",
+              "Strict 1960–1999 cult and genre catalog filter",
+              "Production country filtering (Italy, USA, Europe, Japan & Asia, or Global)",
+              "Live regional streaming availability checks across 13 countries",
+              "Verified trailers and physical media Blu-ray, 4K, and DVD links",
+              "Zero login and zero personal data tracking"
+            ],
+            "author": {
+              "@type": "Person",
+              "name": "Jacopo Coccia",
+              "url": "https://www.jacopococcia.com"
+            },
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD",
+              "availability": "https://schema.org/InStock"
+            }
+          },
+          {
+            "@type": "WebSite",
+            "name": "Denetflix",
+            "description": "Rare, cult, and independent retro genre cinema discovery (1960–1999) free from streaming algorithms.",
+            "inLanguage": "en",
+            "publisher": {
+              "@type": "Person",
+              "name": "Jacopo Coccia",
+              "url": "https://www.jacopococcia.com"
+            }
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "What is Denetflix?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Denetflix is a free, zero-login independent retro cinema finder designed as an antidote to streaming algorithms. Answer 5 quick questions to unearth rare, cult, midnight, and underseen genre movies from 1960 to 1999."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Which decades, regions, and genres does Denetflix cover?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Denetflix strictly covers films released between 1960 and 1999 across American, Italian (including giallo and poliziotteschi), European, and Asian cult cinema spanning 13 genres: Action, Comedy, Science fiction, Fantasy, Horror, Thriller, Romance, Adventure, Crime, Family, Musical, War, and Mystery."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does Denetflix require an account or track personal data?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Denetflix requires no sign-up, stores no personal profiles or watch histories, and processes your quiz selections ephemerally during your browser session."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Where does Denetflix get its movie catalog and streaming availability?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Denetflix combines live regional JustWatch catalogs, Wikidata filmography records, Internet Archive feature films, optional TMDB metadata, and a curated vault of verified 1960–1999 cult films, with honest regional streaming checks across 13 countries and Amazon physical media links."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -32,6 +154,22 @@
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <main style="max-width:780px;margin:0 auto;padding:32px 20px;font-family:sans-serif;color:#f6f4ee;background:#0b0d14;">
+        <h1>Denetflix – Rare &amp; Cult Retro Cinema Finder (1960–1999)</h1>
+        <p>
+          Mainstream feeds serve plastic clones. Denetflix is an independent, algorithm-free movie discovery tool covering rare American, Italian, European, and Asian cult, midnight, and genre films from 1960 to 1999.
+        </p>
+        <p>
+          Please enable JavaScript to take the 5-question pop quiz and explore matching films across Action, Comedy, Science fiction, Fantasy, Horror, Thriller, Romance, Adventure, Crime, Family, Musical, War, and Mystery.
+        </p>
+        <p>
+          Created by <a href="https://www.jacopococcia.com" style="color:#00d4ff;">Jacopo Coccia</a> ·
+          <a href="./privacy.html" style="color:#00d4ff;">Privacy Policy</a> ·
+          <a href="./llms.txt" style="color:#00d4ff;">llms.txt</a>
+        </p>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

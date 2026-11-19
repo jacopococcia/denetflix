@@ -5,7 +5,7 @@ import {Header} from './components/Header';
 import {LegalModal} from './components/LegalModal';
 import {LoadingMessages} from './components/LoadingMessages';
 import {RetroBackdrop} from './components/RetroBackdrop';
-import {DEFAULT_QUIZ_ANSWERS} from './data/quizQuestions';
+import {DEFAULT_QUIZ_ANSWERS, QUIZ_QUESTIONS} from './data/quizQuestions';
 import {HomePage} from './pages/HomePage';
 import {QuizPage} from './pages/QuizPage';
 import {ResultsPage} from './pages/ResultsPage';
@@ -13,6 +13,7 @@ import {generateRecommendations} from './services/recommendationService';
 import type {RecommendationBundle} from './types/movie';
 import type {QuizAnswersMap} from './types/quiz';
 import {getDefaultCountryCode} from './utils/formatters';
+import {syncPageSeo} from './utils/seo';
 import {playReelSpin, playResultsReady} from './utils/soundEffects';
 
 type ActiveView = 'home' | 'quiz' | 'loading' | 'results';
@@ -38,6 +39,16 @@ export default function App() {
   useEffect(() => {
     return () => cancelInFlightRequest();
   }, [cancelInFlightRequest]);
+
+  useEffect(() => {
+    syncPageSeo({
+      activeView,
+      currentStepIndex,
+      totalSteps: QUIZ_QUESTIONS.length,
+      answers,
+      bundle,
+    });
+  }, [activeView, currentStepIndex, answers, bundle]);
 
   const runRecommendationSearch = useCallback(
     async (quizAnswers: QuizAnswersMap, targetCountry: string, shuffleSeed?: number) => {

@@ -1,6 +1,7 @@
 import {GoogleGenAI, ThinkingLevel, Type} from '@google/genai';
 import dotenv from 'dotenv';
 import express from 'express';
+import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createServer as createViteServer} from 'vite';
@@ -1800,6 +1801,104 @@ async function startServer() {
       console.error('[Denetflix Server] Gemini recommend fallback:', (error as Error)?.message || error);
       return res.status(504).json({error: 'Unable to generate personalized notes within timeout.'});
     }
+  });
+
+  // SEO & GEO dynamic endpoints with absolute deployment origin (APP_URL or request host)
+  const resolveSiteOrigin = (req: express.Request): string => {
+    const envUrl = process.env.APP_URL?.trim();
+    if (envUrl && /^https?:\/\//i.test(envUrl)) {
+      return envUrl.replace(/\/+$/, '');
+    }
+    const proto = (req.headers['x-forwarded-proto'] as string)?.split(',')[0]?.trim() || req.protocol || 'https';
+    const host = (req.headers['x-forwarded-host'] as string)?.split(',')[0]?.trim() || req.get('host') || `localhost:${PORT}`;
+    return `${proto}://${host}`;
+  };
+
+  app.get('/robots.txt', (req, res) => {
+    const origin = resolveSiteOrigin(req);
+    res.type('text/plain; charset=utf-8').send(
+      [
+        '# Denetflix — Search Engine & AI Crawler Policy (SEO / GEO)',
+        'User-agent: *',
+        'Allow: /',
+        'Disallow: /api/',
+        '',
+        'User-agent: OAI-SearchBot',
+        'Allow: /',
+        '',
+        'User-agent: GPTBot',
+        'Allow: /',
+        '',
+        'User-agent: ChatGPT-User',
+        'Allow: /',
+        '',
+        'User-agent: ClaudeBot',
+        'Allow: /',
+        '',
+        'User-agent: PerplexityBot',
+        'Allow: /',
+        '',
+        'User-agent: Google-Extended',
+        'Allow: /',
+        '',
+        'User-agent: Applebot-Extended',
+        'Allow: /',
+        '',
+        `Sitemap: ${origin}/sitemap.xml`,
+        '',
+      ].join('\n'),
+    );
+  });
+
+  app.get('/sitemap.xml', (req, res) => {
+    const origin = resolveSiteOrigin(req);
+    const lastmod = '2026-11-19';
+    res.type('application/xml; charset=utf-8').send(
+      `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${origin}/</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>${origin}/privacy.html</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>${origin}/llms.txt</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${origin}/llms-full.txt</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+</urlset>
+`,
+    );
+  });
+
+  app.get(['/llms.txt', '/llms-full.txt'], (req, res, next) => {
+    const fileName = req.path === '/llms-full.txt' ? 'llms-full.txt' : 'llms.txt';
+    const candidateDirs =
+      process.env.NODE_ENV === 'production'
+        ? [path.resolve(__dirname, 'dist'), path.resolve(__dirname, 'public')]
+        : [path.resolve(__dirname, 'public')];
+    for (const dir of candidateDirs) {
+      const target = path.join(dir, fileName);
+      if (fs.existsSync(target)) {
+        res.type('text/plain; charset=utf-8');
+        return res.sendFile(target);
+      }
+    }
+    return next();
   });
 
   if (process.env.NODE_ENV === 'production') {

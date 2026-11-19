@@ -45,6 +45,12 @@ export function MoviePoster({movie}: MoviePosterProps) {
 
   const showImage = Boolean(movie.posterUrl) && !imageError;
   const style = DECADE_POP_STYLES[movie.decade];
+  const genreSummary = movie.genres.slice(0, 2).join('/');
+  const directorSuffix =
+    movie.director && movie.director !== 'Director uncredited'
+      ? ` directed by ${movie.director}`
+      : '';
+  const posterAlt = `${movie.title} (${movie.year}) — ${movie.countryLabel} ${genreSummary} cult movie poster${directorSuffix}`;
 
   if (showImage && movie.posterUrl) {
     return (
@@ -52,7 +58,7 @@ export function MoviePoster({movie}: MoviePosterProps) {
         <img
           key={movie.posterUrl}
           src={movie.posterUrl}
-          alt={`${movie.title} (${movie.year}) movie poster`}
+          alt={posterAlt}
           loading="lazy"
           decoding="async"
           referrerPolicy="no-referrer"
@@ -66,7 +72,7 @@ export function MoviePoster({movie}: MoviePosterProps) {
   return (
     <div
       role="img"
-      aria-label={`${movie.title} (${movie.year}) 80s pop retro cinema poster`}
+      aria-label={posterAlt}
       className={`relative flex aspect-[2/3] w-full flex-col justify-between overflow-hidden rounded-xl border-2 border-white/20 bg-gradient-to-br ${style.bg} p-4 shadow-[4px_4px_0px_#E80000] transition-transform duration-200 ease-out group-hover:-translate-y-0.5`}
     >
       {/* Subtle 80s Pop Art halftone overlay */}

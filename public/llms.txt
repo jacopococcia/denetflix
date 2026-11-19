@@ -1,0 +1,27 @@
+# Denetflix
+
+> Denetflix is a free, zero-login independent retro cinema discovery web application dedicated to rare, cult, midnight, and underseen genre films from 1960 to 1999 across American, Italian, European, and Asian cinema.
+
+Denetflix was created by Jacopo Coccia as an antidote to homogeneous streaming-platform recommendation algorithms. Instead of serving repetitive mainstream hits, Denetflix guides viewers through a fast 5-question interactive quiz and surfaces all matching retro genre deep cuts—complete with movie-specific pros and caveats, regional streaming availability checks, verified trailers, and physical media links (Blu-ray, 4K UHD, DVD).
+
+## Key Facts
+- **Category**: Independent & Cult Cinema Discovery Web Application
+- **Era Covered**: Strictly 1960–1999 (1960s, 1970s, 1980s, and 1990s)
+- **Regions Covered**: Global mix, Italy only (giallo, poliziotteschi, commedia, horror), United States only (drive-in, midnight VHS, indie cult), Rest of Europe only (French, British, German, Spanish, Czech, Scandinavian), and Japan & Asia only (Japanese, Hong Kong, Korean, Taiwanese cult cinema)
+- **Genres Supported (13)**: Action, Comedy, Science fiction, Fantasy, Horror, Thriller, Romance, Adventure, Crime, Family, Musical, War, Mystery
+- **Discovery Workflow**: 5 streamlined steps — Decade, Genres (up to 3), Production Country/Origin, Living-Room Mood/Vibe (ranking priority), and Explicit Deal-Breaker Exclusions
+- **Pricing & Privacy**: 100% free, no user accounts, no sign-up walls, no personal data collection
+- **Author**: Jacopo Coccia (https://www.jacopococcia.com)
+
+## Core Pages & Resources
+- [Denetflix App](/): Interactive 5-question retro cinema quiz and paginated movie discovery engine
+- [Privacy Policy & Disclosures](/privacy.html): Zero-personal-data privacy statement, third-party data sources, and Amazon Associates disclosure
+- [Extended LLM Documentation](/llms-full.txt): Detailed guide covering Denetflix's ranking methodology, catalog data sources, genres, and FAQs for AI assistants and search engines
+
+## Data Integrity & Verification
+- **Catalog Discovery**: Combines live regional JustWatch GraphQL catalogs (US, IT, GB, FR, DE, JP storefronts), Wikidata SPARQL filmography records, Internet Archive feature films, optional TMDB discovery, and a curated vault of verified 1960–1999 cult films.
+- **Availability & Media**: Streaming/rental/purchase providers are checked live by selected country (13 supported regions). When live availability cannot be verified, Denetflix discloses that explicitly rather than fabricating streaming offers.
+- **Physical Media**: Links to Blu-ray, 4K UHD, and DVD editions via Amazon.com (international regions) and Amazon.it (Italy).
+
+## Optional
+- [Author Website — Jacopo Coccia](https://www.jacopococcia.com): Creator portfolio and projects

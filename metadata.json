@@ -1,6 +1,6 @@
 {
   "name": "Denetflix",
-  "description": "Answer a few playful questions to find up to 7 retro movie recommendations from the 1960s, 1970s, 1980s, and 1990s.",
+  "description": "Ditch streaming algorithms. Take Denetflix's 5-question pop quiz to discover rare 1960s–1999 cult, giallo, sci-fi, and indie genre films.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

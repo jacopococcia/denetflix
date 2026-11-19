@@ -32,7 +32,7 @@ export function HomePage({countryCode, onChangeCountry, onStartQuiz}: HomePagePr
             </h1>
 
             <p className="max-w-xl text-base leading-relaxed text-[#A8B1C7] sm:text-lg">
-              Mainstream feeds serve plastic clones. Answer 5 quick pop-quiz questions to unearth all matching hard-to-find American, Italian, and international cult, midnight, and gloriously trashy genre films, paginated 10 at a time.
+              Mainstream feeds serve plastic clones. Answer 5 quick pop-quiz questions to unearth all matching hard-to-find American, Italian, and international cult, midnight, and gloriously trashy genre films.
             </p>
           </div>
 

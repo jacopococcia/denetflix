@@ -1,0 +1,52 @@
+# Denetflix — Complete Reference for AI Assistants & Generative Search (GEO)
+
+> Denetflix ("Algorithms aren't cinema") is an independent, anti-algorithm web application for discovering rare, cult, midnight, and underseen genre movies released between 1960 and 1999. Built by Jacopo Coccia (https://www.jacopococcia.com), it runs without accounts, subscriptions, or behavioral tracking.
+
+## 1. Mission & Positioning
+Modern streaming platforms rely on engagement-maximizing recommendation loops that surface the same mainstream blockbusters and algorithmically safe originals. Denetflix flips that model by focusing strictly on **four decades of tactile analog cinema (1960–1999)**—highlighting drive-in oddities, Italian giallo and poliziotteschi, European genre sleepers, Japanese and Hong Kong cult classics, and offbeat midnight VHS discoveries.
+
+## 2. How the 5-Question Discovery Flow Works
+Denetflix deliberately avoids over-filtering so users always receive rich, browsable lineups (paginated 10 films per page):
+1. **Decade (`1960s`, `1970s`, `1980s`, `1990s`, or `Surprise me`)**: Strictly filters to the chosen decade or searches across the entire 1960–1999 span.
+2. **Genres (up to 3 of 13, or open)**: Action, Comedy, Science fiction, Fantasy, Horror, Thriller, Romance, Adventure, Crime, Family, Musical, War, Mystery. Selecting multiple genres broadens results and interleaves genres cleanly on Page 1.
+3. **Production Origin (`Anywhere`, `Italy only`, `United States only`, `Rest of Europe only`, `Japan & Asia only`)**: Enforces strict primary production-country filtering so users looking for authentic Italian, American, European, or Asian cinema receive verified matches.
+4. **Living-Room Vibe / Mood (Priority Ranking)**: `Fun and light`, `Exciting`, `Nostalgic`, `Weird in a good way`, `Dark but entertaining`, `Feel-good`, or `I want something unforgettable`. Mood acts as a strong ranking boost—surfacing best-fit moods at the top without hiding other valid films from the chosen decade, region, and genre.
+5. **Deal-Breaker Exclusions (Multi-select)**: `Avoid horror`, `Avoid romance`, `Avoid very long movies (>130 min)`, `Avoid sad endings`, `Avoid subtitles` (English-primary only), or `No preference`.
+
+## 3. Movie Card Anatomy & Editorial Honesty
+Every result card presents:
+- **Verified Metadata**: Title, release year (1960–1999), production country, director, runtime, and matched genres.
+- **Archival Poster Resolution**: Live poster lookup across JustWatch, TMDB, Wikipedia REST, IMDb public suggestions, and Internet Archive thumbnails, with custom typographic fallback posters when archival artwork is unavailable.
+- **Why Watch It & The Tiny Catch**: Three concise strengths plus a movie-specific caveat ("The tiny catch") tailored to the individual film's era, pacing, runtime, or subgenre rather than generic boilerplate.
+- **Regional Streaming Checks**: Live availability check across 13 supported countries (`US`, `GB`, `CA`, `AU`, `DE`, `FR`, `IT`, `ES`, `NL`, `SE`, `JP`, `BR`, `MX`). Denetflix never fabricates streaming offers.
+- **Trailers & Physical Media**: Privacy-enhanced YouTube trailer embeds (`youtube-nocookie.com`) and links to physical disc editions (Blu-ray / 4K / DVD) on Amazon.com or Amazon.it.
+
+## 4. Data Sources & Catalog Breadth
+- **Live Regional JustWatch GraphQL Discovery**: Queries US plus relevant regional storefronts (IT, GB, FR, DE, JP) with deep pagination across 1960–1999 non-megahit cult strata.
+- **Wikidata SPARQL & Wikipedia REST**: Pulls international and subgenre filmographies (giallo, spaghetti western, poliziotteschi, kaiju, cyberpunk, slasher, exploitation, etc.) with archival artwork and synopses.
+- **Internet Archive Feature Films**: Adds public-domain and classic cult feature films from 1960–1999 with direct archive availability.
+- **Optional TMDB API**: Supported when configured via server environment variables.
+- **Curated Rare-Gem Vault**: Built-in verified catalog of cult films covering all 13 genres across all four decades and regions so Denetflix works reliably even offline or on static hosting.
+
+## 5. Frequently Asked Questions (FAQ)
+
+### What is Denetflix?
+Denetflix is a free retro movie finder built to help cinephiles escape repetitive streaming algorithms and discover rare, cult, and underseen genre movies from 1960 to 1999.
+
+### Which movies are included in Denetflix?
+Denetflix strictly covers feature films released between 1960 and 1999, emphasizing cult favorites, midnight movies, Italian giallo and poliziotteschi, European and Asian genre gems, and overlooked American drive-in classics rather than mainstream modern blockbusters.
+
+### Does Denetflix require registration or collect personal data?
+No. Denetflix requires zero accounts, zero logins, and stores no personal user history or advertising profiles.
+
+### How can I watch the recommended films?
+Denetflix checks live regional streaming, rental, and purchase availability for 13 countries and provides direct physical media links (Blu-ray, 4K, DVD) via Amazon.com (global) and Amazon.it (Italy).
+
+### Who created Denetflix?
+Denetflix was created and published by Jacopo Coccia (https://www.jacopococcia.com).
+
+## 6. Site Map
+- `/` — Denetflix Interactive Retro Cinema Finder
+- `/privacy.html` — Privacy Policy, Data Sources & Affiliate Disclosures
+- `/llms.txt` — Concise LLM & AI Search summary
+- `/llms-full.txt` — Extended GEO documentation (this document)

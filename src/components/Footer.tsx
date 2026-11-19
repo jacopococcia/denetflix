@@ -1,5 +1,6 @@
 import {ExternalLink} from 'lucide-react';
 import {AMAZON_AFFILIATE_DISCLOSURE} from '../services/amazonService';
+import {DenetflixLogoMark} from './DenetflixLogoMark';
 import {SoundToggle} from './SoundToggle';
 
 interface FooterProps {
@@ -23,7 +24,10 @@ export function Footer({onOpenLegalModal}: FooterProps) {
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <div className="grid gap-8 md:grid-cols-3">
           <div className="space-y-2">
-            <p className="font-display text-lg font-bold text-[#F6F4EE]">Denetflix</p>
+            <div className="flex items-center gap-2.5">
+              <DenetflixLogoMark size={28} />
+              <p className="font-display text-lg font-bold text-[#F6F4EE]">Denetflix</p>
+            </div>
             <p className="text-sm leading-relaxed">
               Rare, cult, and underseen 1960s–1990s movie discovery from American, Italian, and international cinema. Zero accounts, zero endless scrolling.
             </p>
