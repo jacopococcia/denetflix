@@ -1,10 +1,11 @@
 import {ExternalLink} from 'lucide-react';
 import {AMAZON_AFFILIATE_DISCLOSURE} from '../services/amazonService';
 import {DenetflixLogoMark} from './DenetflixLogoMark';
+import type {LegalModalTopic} from './LegalModal';
 import {SoundToggle} from './SoundToggle';
 
 interface FooterProps {
-  onOpenLegalModal: (topic: 'privacy' | 'terms') => void;
+  onOpenLegalModal: (topic: LegalModalTopic) => void;
 }
 
 const FIRST_PUBLICATION_YEAR = 2026;
@@ -48,9 +49,9 @@ export function Footer({onOpenLegalModal}: FooterProps) {
           </div>
 
           <div className="space-y-2 text-xs leading-relaxed">
-            <p className="text-sm font-semibold text-[#F6F4EE]">Privacy & Terms</p>
+            <p className="text-sm font-semibold text-[#F6F4EE]">Privacy, Cookies &amp; Terms</p>
             <p>
-              Your quiz answers are used solely to generate recommendations during your session. Denetflix does not collect names, email addresses, or personal data.
+              No accounts or registrations required. Quiz answers run ephemerally in your session; analytics, UX, conversion, and advertising tags (Google Analytics 4, Microsoft Clarity, Google Conversion Linker, and Meta Pixel) operate via Google Tag Manager.
             </p>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
               <button
@@ -60,11 +61,18 @@ export function Footer({onOpenLegalModal}: FooterProps) {
               >
                 Privacy Policy
               </button>
+              <button
+                type="button"
+                onClick={() => onOpenLegalModal('cookies')}
+                className="min-h-[44px] text-left font-medium text-[#FF4D4D] underline underline-offset-4 hover:text-white cursor-pointer"
+              >
+                Cookie Policy
+              </button>
               <a
                 href="./privacy.html"
                 className="inline-flex min-h-[44px] items-center font-medium text-[#00D4FF] underline underline-offset-4 hover:text-white"
               >
-                Privacy Policy (Full Page)
+                Full Policy Page
               </a>
               <button
                 type="button"

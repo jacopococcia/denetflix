@@ -2,7 +2,7 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {ErrorBanner} from './components/ErrorBanner';
 import {Footer} from './components/Footer';
 import {Header} from './components/Header';
-import {LegalModal} from './components/LegalModal';
+import {LegalModal, type LegalModalTopic} from './components/LegalModal';
 import {LoadingMessages} from './components/LoadingMessages';
 import {RetroBackdrop} from './components/RetroBackdrop';
 import {DEFAULT_QUIZ_ANSWERS, QUIZ_QUESTIONS} from './data/quizQuestions';
@@ -25,7 +25,7 @@ export default function App() {
   const [countryCode, setCountryCode] = useState<string>(() => getDefaultCountryCode());
   const [bundle, setBundle] = useState<RecommendationBundle | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [legalTopic, setLegalTopic] = useState<'privacy' | 'terms' | null>(null);
+  const [legalTopic, setLegalTopic] = useState<LegalModalTopic | null>(null);
 
   const activeRequestRef = useRef<AbortController | null>(null);
 

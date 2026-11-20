@@ -1,6 +1,6 @@
 # Denetflix — Complete Reference for AI Assistants & Generative Search (GEO)
 
-> Denetflix ("Algorithms aren't cinema") is an independent, anti-algorithm web application for discovering rare, cult, midnight, and underseen genre movies released between 1960 and 1999. Built by Jacopo Coccia (https://www.jacopococcia.com), it runs without accounts, subscriptions, or behavioral tracking.
+> Denetflix ("Algorithms aren't cinema") is an independent, anti-algorithm web application for discovering rare, cult, midnight, and underseen genre movies released between 1960 and 1999. Built by Jacopo Coccia (https://www.jacopococcia.com), it runs without user accounts, logins, or subscriptions.
 
 ## 1. Mission & Positioning
 Modern streaming platforms rely on engagement-maximizing recommendation loops that surface the same mainstream blockbusters and algorithmically safe originals. Denetflix flips that model by focusing strictly on **four decades of tactile analog cinema (1960–1999)**—highlighting drive-in oddities, Italian giallo and poliziotteschi, European genre sleepers, Japanese and Hong Kong cult classics, and offbeat midnight VHS discoveries.
@@ -36,8 +36,8 @@ Denetflix is a free retro movie finder built to help cinephiles escape repetitiv
 ### Which movies are included in Denetflix?
 Denetflix strictly covers feature films released between 1960 and 1999, emphasizing cult favorites, midnight movies, Italian giallo and poliziotteschi, European and Asian genre gems, and overlooked American drive-in classics rather than mainstream modern blockbusters.
 
-### Does Denetflix require registration or collect personal data?
-No. Denetflix requires zero accounts, zero logins, and stores no personal user history or advertising profiles.
+### Does Denetflix require registration or a user account?
+No. Denetflix requires zero accounts or logins and processes quiz answers ephemerally during your session. Analytics, UX, conversion, and advertising tags (Google Analytics 4, Microsoft Clarity, Google Conversion Linker, and Meta Pixel) operate via Google Tag Manager as detailed in `/privacy.html`.
 
 ### How can I watch the recommended films?
 Denetflix checks live regional streaming, rental, and purchase availability for 13 countries and provides direct physical media links (Blu-ray, 4K, DVD) via Amazon.com (global) and Amazon.it (Italy).
@@ -47,6 +47,6 @@ Denetflix was created and published by Jacopo Coccia (https://www.jacopococcia.c
 
 ## 6. Site Map
 - `/` — Denetflix Interactive Retro Cinema Finder
-- `/privacy.html` — Privacy Policy, Data Sources & Affiliate Disclosures
+- `/privacy.html` — Privacy & Cookie Policy (GTM, GA4, Microsoft Clarity, Conversion Linker, Meta Pixel), Data Sources & Affiliate Disclosures
 - `/llms.txt` — Concise LLM & AI Search summary
 - `/llms-full.txt` — Extended GEO documentation (this document)

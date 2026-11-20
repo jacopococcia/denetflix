@@ -10,12 +10,12 @@ Denetflix was created by Jacopo Coccia as an antidote to homogeneous streaming-p
 - **Regions Covered**: Global mix, Italy only (giallo, poliziotteschi, commedia, horror), United States only (drive-in, midnight VHS, indie cult), Rest of Europe only (French, British, German, Spanish, Czech, Scandinavian), and Japan & Asia only (Japanese, Hong Kong, Korean, Taiwanese cult cinema)
 - **Genres Supported (13)**: Action, Comedy, Science fiction, Fantasy, Horror, Thriller, Romance, Adventure, Crime, Family, Musical, War, Mystery
 - **Discovery Workflow**: 5 streamlined steps — Decade, Genres (up to 3), Production Country/Origin, Living-Room Mood/Vibe (ranking priority), and Explicit Deal-Breaker Exclusions
-- **Pricing & Privacy**: 100% free, no user accounts, no sign-up walls, no personal data collection
+- **Pricing & Access**: 100% free, no user accounts, no sign-up walls, session-only quiz processing (third-party measurement tags managed via Google Tag Manager are disclosed in the Privacy & Cookie Policy)
 - **Author**: Jacopo Coccia (https://www.jacopococcia.com)
 
 ## Core Pages & Resources
 - [Denetflix App](/): Interactive 5-question retro cinema quiz and paginated movie discovery engine
-- [Privacy Policy & Disclosures](/privacy.html): Zero-personal-data privacy statement, third-party data sources, and Amazon Associates disclosure
+- [Privacy & Cookie Policy](/privacy.html): Privacy policy, cookie & tag inventory (Google Tag Manager, GA4, Microsoft Clarity, Google Conversion Linker, Meta Pixel), third-party data sources, and Amazon Associates disclosure
 - [Extended LLM Documentation](/llms-full.txt): Detailed guide covering Denetflix's ranking methodology, catalog data sources, genres, and FAQs for AI assistants and search engines
 
 ## Data Integrity & Verification
