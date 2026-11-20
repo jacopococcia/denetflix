@@ -2105,6 +2105,21 @@ async function startServer() {
     return next();
   });
 
+  app.get('/google967af5fc087bdc78.html', (_req, res, next) => {
+    const candidateDirs =
+      process.env.NODE_ENV === 'production'
+        ? [path.resolve(__dirname, 'dist'), path.resolve(__dirname, 'public')]
+        : [path.resolve(__dirname, 'public')];
+    for (const dir of candidateDirs) {
+      const target = path.join(dir, 'google967af5fc087bdc78.html');
+      if (fs.existsSync(target)) {
+        res.type('text/html; charset=utf-8');
+        return res.sendFile(target);
+      }
+    }
+    return next();
+  });
+
   if (process.env.NODE_ENV === 'production') {
     const distDir = path.resolve(__dirname, 'dist');
     app.use(express.static(distDir, {dotfiles: 'ignore'}));
