@@ -5,6 +5,7 @@ import {Header} from './components/Header';
 import {LegalModal, type LegalModalTopic} from './components/LegalModal';
 import {LoadingMessages} from './components/LoadingMessages';
 import {RetroBackdrop} from './components/RetroBackdrop';
+import posthog from './posthog';
 import {DEFAULT_QUIZ_ANSWERS, QUIZ_QUESTIONS} from './data/quizQuestions';
 import {HomePage} from './pages/HomePage';
 import {QuizPage} from './pages/QuizPage';
@@ -101,6 +102,16 @@ export default function App() {
         if (controller.signal.aborted) return;
 
         setBundle(result);
+        posthog.capture('recommendations_generated', {
+          result_count: result.recommendations.length,
+          data_mode: result.dataMode,
+          search_type: typeof shuffleSeed === 'number' ? 'shuffle' : 'standard',
+        });
+        posthog.logger.info('recommendation results displayed', {
+          event: 'recommendations_displayed',
+          result_count: result.recommendations.length,
+          data_mode: result.dataMode,
+        });
         playResultsReady(result.recommendations.length > 0);
         setActiveView('results');
         window.scrollTo({top: 0, behavior: 'smooth'});
@@ -118,6 +129,13 @@ export default function App() {
         if (import.meta.env.DEV) {
           console.error('[Denetflix] Recommendation error:', error);
         }
+        posthog.capture('recommendation_search_failed', {
+          search_type: typeof shuffleSeed === 'number' ? 'shuffle' : 'standard',
+        });
+        posthog.logger.warn('recommendation search failed', {
+          event: 'recommendation_search_failed',
+          search_type: typeof shuffleSeed === 'number' ? 'shuffle' : 'standard',
+        });
         setErrorMessage(
           'Looks like the movie gremlins are busy. We could not complete that lookup right now—please try again.',
         );
@@ -133,6 +151,7 @@ export default function App() {
   );
 
   const handleStartQuiz = () => {
+    posthog.capture('quiz_started');
     cancelInFlightRequest();
     setAnswers(DEFAULT_QUIZ_ANSWERS);
     setCurrentStepIndex(0);
@@ -168,11 +187,13 @@ export default function App() {
   };
 
   const handleCountryChangeFromResults = (newCountry: string) => {
+    posthog.capture('recommendation_country_changed', {country_code: newCountry});
     setCountryCode(newCountry);
     void runRecommendationSearch(answers, newCountry);
   };
 
   const handleShuffleLineup = () => {
+    posthog.capture('recommendation_lineup_reshuffled');
     const nextSeed = Math.floor(Math.random() * 100000) + 1;
     void runRecommendationSearch(answers, countryCode, nextSeed);
   };
@@ -210,7 +231,10 @@ export default function App() {
             onUpdateAnswers={setAnswers}
             onStepChange={setCurrentStepIndex}
             onRestart={handleStartQuiz}
-            onSubmit={() => void runRecommendationSearch(answers, countryCode)}
+            onSubmit={() => {
+              posthog.capture('recommendation_search_submitted', {country_code: countryCode});
+              void runRecommendationSearch(answers, countryCode);
+            }}
           />
         ) : null}
 

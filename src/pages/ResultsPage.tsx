@@ -5,6 +5,7 @@ import {ErrorBanner} from '../components/ErrorBanner';
 import {GhoulieToastyPopup} from '../components/GhoulieToastyPopup';
 import {MovieCard} from '../components/MovieCard';
 import {SoundToggle} from '../components/SoundToggle';
+import posthog from '../posthog';
 import {enrichRecommendationSlice} from '../services/recommendationService';
 import type {MovieRecommendation, RecommendationBundle} from '../types/movie';
 import {getCountryName, SUPPORTED_COUNTRIES} from '../utils/formatters';
@@ -128,6 +129,11 @@ export function ResultsPage({
   const handleGoToPage = (nextPage: number) => {
     if (nextPage < 1 || nextPage > totalPages || nextPage === safePage) return;
     playPageFlip();
+    posthog.capture('recommendation_page_changed', {
+      page_number: nextPage,
+      total_pages: totalPages,
+      result_count: totalResults,
+    });
     setCurrentPage(nextPage);
     window.requestAnimationFrame(() => {
       resultsTopRef.current?.scrollIntoView({behavior: 'smooth', block: 'start'});

@@ -6,6 +6,7 @@ import {ProgressBar} from '../components/ProgressBar';
 import {QuizOption} from '../components/QuizOption';
 import {SoundToggle} from '../components/SoundToggle';
 import {QUIZ_QUESTIONS} from '../data/quizQuestions';
+import posthog from '../posthog';
 import type {
   AttentionPreference,
   DecadePreference,
@@ -65,6 +66,11 @@ export function QuizPage({
 
   const handleSelectOption = (value: string) => {
     const currentlySelected = isOptionSelected(value);
+    posthog.capture('quiz_answer_selected', {
+      question_id: question.id,
+      option_value: value,
+      selection_action: currentlySelected ? 'deselected' : 'selected',
+    });
     switch (question.id) {
       case 'decade':
         playPopSelect(true);
