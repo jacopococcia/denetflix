@@ -1,5 +1,6 @@
 import type {Movie} from '../types/movie';
 import type {AttentionPreference, MoodPreference, MovieGenre, PopularityPreference, UserPreferences, ViewingContext} from '../types/quiz';
+import {sanitizeDirectorName} from '../utils/directorValidation';
 import {buildMovieSpecificPainPoint} from '../utils/movieInsights';
 import {isSafeAssetPath} from '../utils/urlSecurity';
 
@@ -349,7 +350,7 @@ export function normalizeTmdbMovieDetail(detail: TmdbMovieDetail): Movie | null 
 
   const genres: MovieGenre[] = mappedGenres;
   const directorEntry = detail.credits?.crew?.find((c) => c.job === 'Director');
-  const director = directorEntry?.name?.trim() || 'Director uncredited';
+  const director = sanitizeDirectorName(directorEntry?.name) || '';
   const runtimeMinutes = typeof detail.runtime === 'number' && detail.runtime > 0 ? detail.runtime : null;
   const originInfo = inferOriginFromDetail(detail);
   const traits = inferTraitsFromGenres(
@@ -384,7 +385,9 @@ export function normalizeTmdbMovieDetail(detail: TmdbMovieDetail): Movie | null 
     isNonEnglishPrimary: Boolean(detail.original_language && detail.original_language !== 'en'),
     defaultPros: [
       `Underseen ${getDecadeBucket(year)} ${originInfo.countryLabel} gem outside the mainstream canon`,
-      `Directed by ${director} with distinct retro flavor`,
+      director
+        ? `Directed by ${director} with distinct retro flavor`
+        : `Distinct ${getDecadeBucket(year)} cult atmosphere and handmade retro craft`,
       genres.length > 1
         ? `Blends ${genres.slice(0, 2).join(' and ').toLowerCase()} with cult personality`
         : `Delivers pure ${genres[0].toLowerCase()} discovery`,

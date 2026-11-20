@@ -8,6 +8,7 @@ import type {
 } from '../types/movie';
 import type {QuizAnswersMap, UserPreferences} from '../types/quiz';
 import {summarizePreferences} from '../utils/formatters';
+import {sanitizeDirectorName} from '../utils/directorValidation';
 import {selectUniqueMoviePainPoint} from '../utils/movieInsights';
 import {
   buildUserPreferences,
@@ -80,7 +81,7 @@ async function requestGeminiEnhancement(
       title: m.title,
       year: m.year,
       countryLabel: m.countryLabel,
-      director: m.director,
+      director: sanitizeDirectorName(m.director) || '',
       runtimeMinutes: m.runtimeMinutes,
       genres: m.genres,
       synopsis: m.synopsis,

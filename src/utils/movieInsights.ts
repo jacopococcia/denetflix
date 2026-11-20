@@ -1,4 +1,5 @@
 import type {Movie} from '../types/movie';
+import {sanitizeDirectorName} from './directorValidation';
 
 export interface PainPointContext {
   imdbScore?: number | null;
@@ -63,16 +64,6 @@ function hashTitleYear(title: string, year: number): number {
   return h >>> 0;
 }
 
-function hasRealDirector(director: string | undefined): director is string {
-  if (!director) return false;
-  const trimmed = director.trim();
-  return Boolean(
-    trimmed &&
-      trimmed !== 'Director uncredited' &&
-      trimmed !== 'Archive Director',
-  );
-}
-
 function buildLabeledCandidates(
   movie: Pick<
     Movie,
@@ -92,7 +83,7 @@ function buildLabeledCandidates(
   const shortTitle = cleanShortTitle(movie.title);
   const syn = (movie.synopsis || '').toLowerCase();
   const genres = new Set(movie.genres);
-  const realDirector = hasRealDirector(movie.director) ? movie.director : null;
+  const realDirector = sanitizeDirectorName(movie.director);
   const countryAdj = getCountryAdjective(movie.countryLabel);
   const seed = hashTitleYear(shortTitle, movie.year);
   const candidates: PainPointCandidate[] = [];

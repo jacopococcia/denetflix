@@ -1,5 +1,6 @@
 import type {RecommendationBundle} from '../types/movie';
 import type {QuizAnswersMap} from '../types/quiz';
+import {sanitizeDirectorName} from './directorValidation';
 import {sanitizeImageUrl} from './urlSecurity';
 
 export const BASE_SEO_TITLE = 'Denetflix – Rare & Cult Retro Cinema Finder (1960–1999)';
@@ -84,8 +85,7 @@ function upsertResultsJsonLd(bundle: RecommendationBundle | null): void {
     name: 'Denetflix Retro Cult Movie Recommendations',
     numberOfItems: bundle.recommendations.length,
     itemListElement: topMovies.map((rec, index) => {
-      const hasKnownDirector =
-        Boolean(rec.movie.director) && rec.movie.director !== 'Director uncredited';
+      const verifiedDirector = sanitizeDirectorName(rec.movie.director);
       return {
         '@type': 'ListItem',
         position: index + 1,
@@ -102,8 +102,8 @@ function upsertResultsJsonLd(bundle: RecommendationBundle | null): void {
             typeof rec.movie.runtimeMinutes === 'number' && rec.movie.runtimeMinutes > 0
               ? `PT${Math.round(rec.movie.runtimeMinutes)}M`
               : undefined,
-          director: hasKnownDirector
-            ? {'@type': 'Person', name: rec.movie.director}
+          director: verifiedDirector
+            ? {'@type': 'Person', name: verifiedDirector}
             : undefined,
           description: rec.movie.synopsis,
           image: sanitizeImageUrl(rec.movie.posterUrl) || undefined,

@@ -1,6 +1,7 @@
 import {AlertCircle, Check, Disc3, ExternalLink, Play} from 'lucide-react';
 import {useState} from 'react';
 import type {MovieRecommendation} from '../types/movie';
+import {sanitizeDirectorName} from '../utils/directorValidation';
 import {formatRuntime} from '../utils/formatters';
 import {playPageFlip} from '../utils/soundEffects';
 import {AvailabilityBadge} from './AvailabilityBadge';
@@ -25,6 +26,7 @@ export function MovieCard({recommendation, rank, animationIndex = 0}: MovieCardP
     physicalMedia,
   } = recommendation;
   const runtimeLabel = formatRuntime(movie.runtimeMinutes);
+  const verifiedDirector = sanitizeDirectorName(movie.director);
   const [isTrailerOpen, setIsTrailerOpen] = useState(false);
 
   return (
@@ -63,8 +65,12 @@ export function MovieCard({recommendation, rank, animationIndex = 0}: MovieCardP
                 <span className="font-semibold text-[#F6F4EE]">{movie.year}</span>
                 <span aria-hidden="true">·</span>
                 <span className="font-medium text-[#F6F4EE]">{movie.countryLabel}</span>
-                <span aria-hidden="true">·</span>
-                <span>Dir. {movie.director}</span>
+                {verifiedDirector ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>Dir. {verifiedDirector}</span>
+                  </>
+                ) : null}
                 {runtimeLabel ? (
                   <>
                     <span aria-hidden="true">·</span>

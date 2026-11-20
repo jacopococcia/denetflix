@@ -1,6 +1,7 @@
 import type {Movie} from '../types/movie';
 import type {MovieGenre, UserPreferences} from '../types/quiz';
 import {buildMovieSpecificPainPoint} from '../utils/movieInsights';
+import {sanitizeDirectorName} from '../utils/directorValidation';
 import {sanitizeExternalUrl} from '../utils/urlSecurity';
 import {
   createTimeoutSignal,
@@ -179,10 +180,12 @@ export function normalizeJustWatchCatalogMovie(item: ServerDiscoverItem): Movie 
   );
 
   const decade = getDecadeBucket(item.year);
-  const director = item.director?.trim() || 'Director uncredited';
+  const director = sanitizeDirectorName(item.director) || '';
   const synopsis =
     item.overview?.trim() ||
-    `An underseen ${decade} ${originInfo.countryLabel} ${mappedGenres[0].toLowerCase()} feature directed by ${director}.`;
+    (director
+      ? `An underseen ${decade} ${originInfo.countryLabel} ${mappedGenres[0].toLowerCase()} feature directed by ${director}.`
+      : `An underseen ${decade} ${originInfo.countryLabel} ${mappedGenres[0].toLowerCase()} feature from the deep archive.`);
 
   const safePosterUrl = sanitizeExternalUrl(item.posterUrl);
   const draftMovie: Movie = {
@@ -208,7 +211,9 @@ export function normalizeJustWatchCatalogMovie(item: ServerDiscoverItem): Movie 
     isNonEnglishPrimary: originInfo.isNonEnglish,
     defaultPros: [
       `Underseen ${decade} ${originInfo.countryLabel} ${mappedGenres[0].toLowerCase()} cut from the deep archive`,
-      `Directed by ${director} with unmistakable analog texture`,
+      director
+        ? `Directed by ${director} with unmistakable analog texture`
+        : `Unmistakable ${decade} analog texture and offbeat cult personality`,
       mappedGenres.length > 1
         ? `Mixes ${mappedGenres.slice(0, 2).join(' and ').toLowerCase()} outside the usual mainstream feed`
         : `Pure ${mappedGenres[0].toLowerCase()} discovery worth unearthing tonight`,
@@ -402,7 +407,7 @@ LIMIT 160`;
           decade,
           origin: originMeta.origin,
           countryLabel: originMeta.countryLabel,
-          director: 'Archive Director',
+          director: '',
           runtimeMinutes: null,
           genres: [genre],
           synopsis: `${cleanTitle} (${year}) — a verified ${decade} ${genre.toLowerCase()} entry from the open cinema archive.`,
@@ -599,8 +604,9 @@ export async function fetchMoviesFromInternetArchive(
         }
       }
 
-      const creator = Array.isArray(doc.creator) ? doc.creator[0] : doc.creator;
-      const director = creator?.trim() || 'Archive Director';
+      // Internet Archive "creator" metadata frequently lists studios/distributors/uploaders
+      // rather than the film's actual director, so leave director empty to avoid misleading credits.
+      const director = '';
       const decade = getDecadeBucket(parsedYear);
       const synopsis =
         cleanDesc.length >= 24
