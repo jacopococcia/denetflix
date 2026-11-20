@@ -1,5 +1,6 @@
 import {AlertCircle, Check, Disc3, ExternalLink, Play} from 'lucide-react';
 import {useState} from 'react';
+import posthog from '../posthog';
 import type {MovieRecommendation} from '../types/movie';
 import {sanitizeDirectorName} from '../utils/directorValidation';
 import {formatRuntime} from '../utils/formatters';
@@ -133,6 +134,11 @@ export function MovieCard({recommendation, rank, animationIndex = 0}: MovieCardP
                 <button
                   type="button"
                   onClick={() => {
+                    posthog.capture('trailer_opened', {
+                      movie_id: movie.id,
+                      movie_year: movie.year,
+                      result_rank: rank,
+                    });
                     playPageFlip();
                     setIsTrailerOpen(true);
                   }}
@@ -170,6 +176,13 @@ export function MovieCard({recommendation, rank, animationIndex = 0}: MovieCardP
                     href={physicalMedia.url}
                     target="_blank"
                     rel="noopener noreferrer sponsored"
+                    onClick={() => {
+                      posthog.capture('affiliate_link_clicked', {
+                        movie_id: movie.id,
+                        movie_year: movie.year,
+                        result_rank: rank,
+                      });
+                    }}
                     className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-[#E80000] px-4 py-2 text-center text-xs font-semibold text-white hover:bg-[#ff1a1a] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E80000]"
                   >
                     <span>{physicalMedia.label}</span>

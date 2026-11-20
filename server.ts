@@ -1,6 +1,12 @@
-import {GoogleGenAI, ThinkingLevel, Type} from '@google/genai';
+import {GoogleGenAI} from '@posthog/ai/gemini';
+import {PostHog} from 'posthog-node';
+import {OTLPLogExporter} from '@opentelemetry/exporter-logs-otlp-http';
+import {resourceFromAttributes} from '@opentelemetry/resources';
+import {BatchLogRecordProcessor, LoggerProvider} from '@opentelemetry/sdk-logs';
+import {ThinkingLevel, Type} from '@google/genai';
 import dotenv from 'dotenv';
 import express from 'express';
+import {randomUUID} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -12,6 +18,58 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = Number(process.env.PORT || 3000);
+const posthogApiKey = (process.env.POSTHOG_API_KEY || '').trim();
+const posthogHost = (process.env.POSTHOG_HOST || '').trim();
+const posthog =
+  posthogApiKey && posthogHost
+    ? new PostHog(posthogApiKey, {
+        host: posthogHost,
+        privacyMode: false,
+        enableExceptionAutocapture: false,
+      })
+    : undefined;
+const posthogAiSessionId = `denetflix-server-${process.pid}`;
+const posthogProjectToken = (process.env.VITE_POSTHOG_KEY || '').trim();
+const posthogLogProvider =
+  posthogProjectToken && posthogHost
+    ? new LoggerProvider({
+        resource: resourceFromAttributes({
+          'service.name': 'denetflix-server',
+          'deployment.environment': process.env.NODE_ENV || 'development',
+        }),
+        processors: [
+          new BatchLogRecordProcessor(
+            new OTLPLogExporter({
+              url: `${posthogHost.replace(/\/$/, '')}/i/v1/logs`,
+              headers: {Authorization: `Bearer ${posthogProjectToken}`},
+            }),
+          ),
+        ],
+      })
+    : undefined;
+const posthogLog = posthogLogProvider?.getLogger('denetflix-posthog-log-exporter');
+
+if (!posthog && process.env.NODE_ENV !== 'production') {
+  for (const variableName of [
+    ...(posthogApiKey ? [] : ['POSTHOG_API_KEY']),
+    ...(posthogHost ? [] : ['POSTHOG_HOST']),
+  ]) {
+    console.warn(
+      `${variableName} variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once ${variableName} is configured`,
+    );
+  }
+}
+
+if (!posthogLogProvider && process.env.NODE_ENV !== 'production') {
+  for (const variableName of [
+    ...(posthogProjectToken ? [] : ['VITE_POSTHOG_KEY']),
+    ...(posthogHost ? [] : ['POSTHOG_HOST']),
+  ]) {
+    console.warn(
+      `${variableName} variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once ${variableName} is configured`,
+    );
+  }
+}
 
 const GENRE_NAME_TO_TMDB_ID: Record<string, number> = {
   Action: 28,
@@ -795,6 +853,7 @@ function getGeminiClient(): GoogleGenAI | null {
   }
   return new GoogleGenAI({
     apiKey,
+    ...(posthog ? {posthog} : {}),
     httpOptions: {
       headers: {
         'User-Agent': 'aistudio-build',
@@ -1925,10 +1984,15 @@ async function startServer() {
         return res.status(400).json({error: 'Valid verified movies are required.'});
       }
 
+      const posthogTraceId = randomUUID();
       const response = await withTimeout(
         ai.models.generateContent({
           model: 'gemini-4-hydrogen',
           contents: JSON.stringify({preferences: safePreferences, verifiedMovies: cappedMovies}),
+          posthogTraceId,
+          posthogProperties: {
+            $ai_session_id: posthogAiSessionId,
+          },
           config: {
             thinkingConfig: {
               thinkingLevel: ThinkingLevel.LOW,
@@ -1992,8 +2056,24 @@ async function startServer() {
       ) {
         return res.status(502).json({error: 'Unexpected response format from Gemini.'});
       }
+      posthogLog?.emit({
+        severityText: 'INFO',
+        body: 'Gemini recommendation completed',
+        attributes: {
+          event: 'gemini_recommendation_completed',
+          recommendation_count: parsed.recommendations.length,
+        },
+      });
       return res.json(parsed);
     } catch (error) {
+      posthogLog?.emit({
+        severityText: 'WARN',
+        body: 'Gemini recommendation fallback returned',
+        attributes: {
+          event: 'gemini_recommendation_fallback',
+          failure_stage: 'generation_or_response_validation',
+        },
+      });
       console.error('[Denetflix Server] Gemini recommend fallback:', (error as Error)?.message || error);
       return res.status(504).json({error: 'Unable to generate personalized notes within timeout.'});
     }
@@ -2142,9 +2222,27 @@ async function startServer() {
     app.use(vite.middlewares);
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Denetflix server running on http://localhost:${PORT}`);
+    posthogLog?.emit({
+      severityText: 'INFO',
+      body: 'Denetflix server started',
+      attributes: {event: 'server_started', server_port: PORT},
+    });
   });
+
+  const shutdown = () => {
+    server.close(() => {
+      const flush = Promise.allSettled([
+        posthog?.shutdown(1500) ?? Promise.resolve(),
+        posthogLogProvider?.shutdown() ?? Promise.resolve(),
+      ]);
+      const timeout = new Promise<void>((resolve) => setTimeout(resolve, 1500));
+      void Promise.race([flush, timeout]).catch(() => undefined).finally(() => process.exit(0));
+    });
+  };
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
 }
 
 startServer().catch((err) => {
