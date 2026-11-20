@@ -25,4 +25,4 @@ Allow: /
 User-agent: Applebot-Extended
 Allow: /
 
-Sitemap: /sitemap.xml
+Sitemap: https://www.denetflix.me/sitemap.xml

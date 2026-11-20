@@ -2056,15 +2056,23 @@ async function startServer() {
 
   app.get('/sitemap.xml', (req, res) => {
     const safeOrigin = escapeXml(resolveSiteOrigin(req));
-    const lastmod = '2026-11-19';
+    const lastmod = '2026-11-20';
     res.type('application/xml; charset=utf-8').send(
       `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset
+  xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+>
   <url>
     <loc>${safeOrigin}/</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+    <image:image>
+      <image:loc>${safeOrigin}/og-denetflix.jpg</image:loc>
+      <image:title>Denetflix – Rare &amp; Cult Retro Cinema Finder (1960–1999)</image:title>
+      <image:caption>Pop art illustration of a retro VHS collector basement with cult, horror, and giallo tapes</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>${safeOrigin}/privacy.html</loc>
